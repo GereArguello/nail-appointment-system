@@ -1,1 +1,3 @@
-"""Acá irá el hasheo de contraseñas y generación de tokens"""
+from pwdlib import PasswordHash
+
+password_hash = PasswordHash.recommended()
