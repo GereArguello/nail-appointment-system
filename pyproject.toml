@@ -4,9 +4,10 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]",
-    "psycopg[binary]>=3.3.4",
-    "pwdlib>=0.3.0",
+    "psycopg[binary]",
+    "pwdlib[argon2]",
     "sqlmodel",
+    "starlette",
 ]
 
 [tool.ruff]
@@ -22,6 +23,9 @@ select = [
     "UP",
     "S",
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"app/tests/**/*.py" = ["S101", "S106"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -43,11 +47,13 @@ warn_unreachable = true
 strict_equality = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["app/tests"]
 python_files = ["test_*.py"]
+pythonpath = ["."]
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.9.1",
     "mypy",
     "pre-commit",
     "pytest",

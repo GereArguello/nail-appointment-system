@@ -17,7 +17,7 @@ def create_user(user: UserCreate, session: SessionDep) -> UserRead:
 
     db_user = User(
         **data,
-        password_hash=password_hash.hash(user.password1),
+        password_hash=password_hash.hash(user.password2),
     )
 
     try:
@@ -28,7 +28,7 @@ def create_user(user: UserCreate, session: SessionDep) -> UserRead:
         session.rollback()
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe un usuario con este email",
+            detail="El email ya está registrado",
         ) from exc
 
     response: UserRead = UserRead.model_validate(db_user)
