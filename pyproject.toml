@@ -6,6 +6,7 @@ dependencies = [
     "fastapi[standard]",
     "psycopg[binary]",
     "pwdlib[argon2]",
+    "python-jose[cryptography]>=3.5.0",
     "sqlmodel",
     "starlette",
 ]
@@ -23,6 +24,7 @@ select = [
     "UP",
     "S",
 ]
+ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
 "app/tests/**/*.py" = ["S101", "S106"]

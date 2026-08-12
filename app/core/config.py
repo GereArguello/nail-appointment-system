@@ -5,6 +5,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     DATABASE_URL: str
 
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
