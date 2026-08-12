@@ -44,8 +44,8 @@ def create_user(
     client: TestClient,
 ) -> Callable[[], UserRead]:
 
-    def _create_user() -> UserRead:
-        data = create_data()
+    def _create_user(**overrides: Any) -> UserRead:
+        data = create_data(**overrides)
 
         response = client.post("/users/", json=data)
         assert response.status_code == status.HTTP_201_CREATED

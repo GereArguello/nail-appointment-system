@@ -8,7 +8,7 @@ from app.core.database import SessionDep
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("login", response_model=Token, status_code=status.HTTP_200_OK, summary="")
+@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK, summary="")
 def login(
     session: SessionDep, form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Token:

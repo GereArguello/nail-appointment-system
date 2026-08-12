@@ -4,6 +4,7 @@ from typing import cast
 from sqlmodel import Session, select
 
 from app.core.config import settings
+from app.core.enums import StatusEnum
 from app.core.security import create_access_token, password_hash
 from app.users.models import User
 
@@ -20,10 +21,10 @@ def authenticate_user(session: Session, email: str, password: str) -> User | Non
     if not user:
         return None
 
-    if user.deleted_at:
+    if user.status == StatusEnum.INACTIVE:
         return None
 
-    if not password_hash(password, user.password_hash):
+    if not password_hash.verify(password, user.password_hash):
         return None
 
     return user
