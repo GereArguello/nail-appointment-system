@@ -42,7 +42,7 @@ def client_fixture(session: Session) -> Generator[TestClient]:
 @pytest.fixture
 def create_user(
     client: TestClient,
-) -> Callable[[], UserRead]:
+) -> Callable[..., UserRead]:
 
     def _create_user(**overrides: Any) -> UserRead:
         data = create_data(**overrides)
@@ -55,3 +55,20 @@ def create_user(
         return cast(UserRead, UserRead.model_validate(response_data))
 
     return _create_user
+
+
+@pytest.fixture
+def user_with_login(
+    client: TestClient, create_user: Callable[..., UserRead]
+) -> tuple[UserRead, str]:
+    user = create_user()
+
+    response = client.post(
+        "/auth/login", data={"username": user.email, "password": "A12345678"}
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+
+    return user, data["access_token"]

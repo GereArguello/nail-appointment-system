@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
+from app.auth.dependencies import get_current_user
 from app.core.database import SessionDep
 from app.core.security import password_hash
 from app.users.models import User
@@ -33,3 +34,8 @@ def create_user(user: UserCreate, session: SessionDep) -> UserRead:
 
     response: UserRead = UserRead.model_validate(db_user)
     return response
+
+
+@router.get("/me", response_model=UserRead, status_code=status.HTTP_200_OK, summary="")
+def read_me(current_user: User = Depends(get_current_user)) -> UserRead:
+    return current_user
