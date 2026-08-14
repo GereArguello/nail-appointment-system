@@ -5,7 +5,7 @@ from typing import Self
 from pydantic import ConfigDict, EmailStr, field_validator, model_validator
 from sqlmodel import Field, SQLModel
 
-from app.core.enums import RoleEnum
+from app.core.enums import RoleEnum, StatusEnum
 from app.users.models import UserBase
 
 
@@ -51,6 +51,7 @@ class UserRead(UserBase):
 
     email: EmailStr
     role: RoleEnum
+    status: StatusEnum
     created_at: datetime
     updated_at: datetime
 
