@@ -14,11 +14,11 @@ router = APIRouter(prefix="/users", tags=["users"])
     "/", response_model=UserRead, status_code=status.HTTP_201_CREATED, summary=""
 )
 def create_user(user: UserCreate, session: SessionDep) -> UserRead:
-    data = user.model_dump(exclude={"password1", "password2"})
+    data = user.model_dump(exclude={"password", "password2"})
 
     db_user = User(
         **data,
-        password_hash=password_hash.hash(user.password2),
+        password_hash=password_hash.hash(user.password),
     )
 
     try:

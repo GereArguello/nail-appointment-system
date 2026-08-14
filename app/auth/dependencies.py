@@ -15,21 +15,31 @@ oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session),
 ) -> User:
     payload = decode_token(token)
-    user_id = payload.get("sub")
 
-    if not user_id:
+    if payload.get("type") != "access":
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido",
         )
 
-    user = session.get(User, int(user_id))
-
-    if not user or user.status == StatusEnum.INACTIVE:
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido",
+        ) from None
+
+    user = cast(User | None, session.get(User, user_id))
+
+    if user is None or user.status == StatusEnum.INACTIVE:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas",
         )
 
-    return cast(User, user)
+    return user
