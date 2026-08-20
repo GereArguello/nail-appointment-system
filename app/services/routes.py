@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi import status as http_status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/services", tags=["services"])
 @router.post(
     "/",
     response_model=ServiceRead,
-    status_code=status.HTTP_201_CREATED,
+    status_code=http_status.HTTP_201_CREATED,
     summary="Crear servicio",
 )
 def create_service(
@@ -33,7 +34,7 @@ def create_service(
     except IntegrityError as exc:
         session.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=http_status.HTTP_409_CONFLICT,
             detail="Ya existe un servicio con ese nombre",
         ) from exc
 
@@ -42,7 +43,7 @@ def create_service(
     return response
 
 
-@router.get("/", response_model=list[ServiceRead], status_code=status.HTTP_200_OK)
+@router.get("/", response_model=list[ServiceRead], status_code=http_status.HTTP_200_OK)
 def list_services(
     session: SessionDep,
     status: StatusEnum | None = None,
@@ -59,3 +60,31 @@ def list_services(
     services = session.exec(query).all()
 
     return [ServiceRead.model_validate(service) for service in services]
+
+
+@router.get(
+    "/{service_id}",
+    response_model=ServiceRead,
+    status_code=http_status.HTTP_200_OK,
+)
+def read_service(
+    session: SessionDep,
+    service_id: int,
+    current_user: User | None = Depends(get_current_user_optional),
+) -> ServiceRead:
+    query = select(Service).where(Service.id == service_id)
+
+    if not (current_user and current_user.role == RoleEnum.ADMIN):
+        query = query.where(Service.status == StatusEnum.ACTIVE)
+
+    service = session.exec(query).first()
+
+    if service is None:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado",
+        )
+
+    response: ServiceRead = ServiceRead.model_validate(service)
+
+    return response
