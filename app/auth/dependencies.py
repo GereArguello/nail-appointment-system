@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
 from app.core.database import get_session
-from app.core.enums import StatusEnum
+from app.core.enums import RoleEnum, StatusEnum
 from app.core.security import decode_token
 from app.users.models import User
 
@@ -40,6 +40,18 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas",
+        )
+
+    return user
+
+
+def get_current_admin(
+    user: User = Depends(get_current_user),
+) -> User:
+    if user.role is not RoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para realizar esta acción",
         )
 
     return user
