@@ -55,3 +55,23 @@ def get_current_admin(
         )
 
     return user
+
+
+def get_current_user_optional(
+    token: str | None = Depends(oauth2_scheme_optional),
+    session: Session = Depends(get_session),
+) -> User | None:
+    if not token:
+        return None
+
+    payload = decode_token(token)
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+
+    user = cast(User | None, session.get(User, int(user_id)))
+
+    if not user or user.status == StatusEnum.INACTIVE:
+        return None
+
+    return user

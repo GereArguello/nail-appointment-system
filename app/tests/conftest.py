@@ -9,8 +9,9 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 
 from app.core.database import get_session
-from app.core.enums import RoleEnum
+from app.core.enums import RoleEnum, StatusEnum
 from app.main import app
+from app.services.models import Service
 from app.services.schemas import ServiceRead
 from app.tests.factories import create_data, create_service_data
 from app.users.models import User
@@ -81,7 +82,7 @@ def user_with_login(
 def admin_with_login(
     client: TestClient, session: Session, create_user: Callable[..., UserRead]
 ) -> tuple[UserRead, str]:
-    user = create_user(first_name="admin")
+    user = create_user(first_name="admin", email="admin@gmail.com")
 
     db_user = session.get(User, user.id)
 
@@ -116,7 +117,7 @@ def create_service(
 ) -> Callable[..., ServiceRead]:
     _, token = admin_with_login
 
-    def _create_service(**overrides: object) -> ServiceRead:
+    def _create_service(**overrides: Any) -> ServiceRead:
         data = create_service_data(**overrides)
 
         response = client.post(
@@ -130,3 +131,22 @@ def create_service(
         return cast(UserRead, ServiceRead.model_validate(response.json()))
 
     return _create_service
+
+
+@pytest.fixture
+def inactive_service(
+    session: Session, create_service: Callable[..., ServiceRead]
+) -> ServiceRead:
+    service = create_service(name="Manicura clásica 2")
+
+    service_db = session.get(Service, service.id)
+
+    assert service_db is not None
+
+    service_db.status = StatusEnum.INACTIVE
+
+    session.commit()
+    session.refresh(service_db)
+
+    inactive_service: ServiceRead = ServiceRead.model_validate(service_db)
+    return inactive_service
