@@ -1,4 +1,5 @@
 from collections.abc import Callable, Generator, Iterator
+from datetime import timedelta
 from typing import Any, cast
 
 import pytest
@@ -13,9 +14,15 @@ from app.core.enums import RoleEnum, StatusEnum
 from app.main import app
 from app.services.models import Service
 from app.services.schemas import ServiceRead
-from app.tests.factories import create_data, create_service_data
+from app.tests.factories import (
+    create_data,
+    create_service_data,
+    create_working_hours_data,
+)
 from app.users.models import User
 from app.users.schemas import UserRead
+from app.utils import utc_now
+from app.working_hours.schemas import WorkingHoursRead
 
 sqlite_url = "sqlite:///:memory:"
 
@@ -150,3 +157,41 @@ def inactive_service(
 
     inactive_service: ServiceRead = ServiceRead.model_validate(service_db)
     return inactive_service
+
+
+@pytest.fixture
+def create_working_hours(
+    client: TestClient, admin_with_login: tuple[UserRead, str]
+) -> Callable[..., WorkingHoursRead]:
+
+    def _create_working_hours(**overrides: Any) -> WorkingHoursRead:
+        _, token = admin_with_login
+        data = create_working_hours_data(**overrides)
+
+        response = client.post(
+            "/working-hours/", json=data, headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response_data: dict[str, Any] = response.json()
+
+        return cast(WorkingHoursRead, WorkingHoursRead.model_validate(response_data))
+
+    return _create_working_hours
+
+
+@pytest.fixture
+def create_working_hours_list(
+    create_working_hours: Callable[..., WorkingHoursRead],
+) -> Callable[[int], list[WorkingHoursRead]]:
+
+    def _create_working_hours_list(amount: int) -> list[WorkingHoursRead]:
+        return [
+            create_working_hours(
+                date=(utc_now() + timedelta(days=i + 1)).date().isoformat()
+            )
+            for i in range(amount)
+        ]
+
+    return _create_working_hours_list

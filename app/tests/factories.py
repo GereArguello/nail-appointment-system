@@ -1,5 +1,7 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
+
+from app.utils import utc_now
 
 
 def create_data(**overrides: Any) -> dict[str, Any]:
@@ -27,4 +29,14 @@ def create_service_data(**overrides: Any) -> dict[str, Any]:
         "deposit_amount": 0,
     }
     data.update(overrides)
+    return data
+
+
+def create_working_hours_data(**overrides: Any) -> dict[str, Any]:
+    date = (utc_now() + timedelta(days=5)).date().isoformat()
+
+    data = {"date": date, "start_time": "09:00:00", "end_time": "18:00:00"}
+
+    data.update(overrides)
+
     return data
