@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 from typing import Any
 
+from app.tests.calendar_blocks.helpers import make_calendar_block_datetime
 from app.utils import utc_now
 
 
@@ -36,6 +37,18 @@ def create_working_hours_data(**overrides: Any) -> dict[str, Any]:
     date = (utc_now() + timedelta(days=5)).date().isoformat()
 
     data = {"date": date, "start_time": "09:00:00", "end_time": "18:00:00"}
+
+    data.update(overrides)
+
+    return data
+
+
+def create_calendar_block_data(**overrides: Any) -> dict[str, Any]:
+
+    starts_at = make_calendar_block_datetime(days=1, hour=13)
+    ends_at = make_calendar_block_datetime(days=1, hour=15)
+
+    data = {"starts_at": starts_at, "ends_at": ends_at}
 
     data.update(overrides)
 

@@ -63,13 +63,13 @@ def list_working_hours(session: SessionDep) -> list[WorkingHoursRead]:
 def read_working_hour(
     session: SessionDep,
     working_hour_id: int,
-    user: User | None = Depends(get_current_user_optional),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> WorkingHoursRead:
     today = utc_now().date()
 
     query = select(WorkingHours).where(WorkingHours.id == working_hour_id)
 
-    if not user or user.role != RoleEnum.ADMIN:
+    if not current_user or current_user.role != RoleEnum.ADMIN:
         query = query.where(WorkingHours.date >= today)
 
     working_hour = session.exec(query).first()

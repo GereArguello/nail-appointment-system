@@ -9,12 +9,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 
+from app.calendar_blocks.schemas import CalendarBlockRead
 from app.core.database import get_session
 from app.core.enums import RoleEnum, StatusEnum
 from app.main import app
 from app.services.models import Service
 from app.services.schemas import ServiceRead
 from app.tests.factories import (
+    create_calendar_block_data,
     create_data,
     create_service_data,
     create_working_hours_data,
@@ -218,3 +220,27 @@ def create_past_working_hours(
         return cast(WorkingHoursRead, WorkingHoursRead.model_validate(working_hour))
 
     return _create_past_working_hours
+
+
+@pytest.fixture
+def create_calendar_block(
+    client: TestClient, admin_with_login: tuple[UserRead, str]
+) -> Callable[..., CalendarBlockRead]:
+    def _create_calendar_block(**overrides: Any) -> CalendarBlockRead:
+
+        _, token = admin_with_login
+        data = create_calendar_block_data(**overrides)
+
+        response = client.post(
+            "/calendar-blocks/",
+            json=data,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response_data: dict[str, Any] = response.json()
+
+        return cast(CalendarBlockRead, CalendarBlockRead.model_validate(response_data))
+
+    return _create_calendar_block

@@ -5,7 +5,7 @@ from sqlmodel import Field, SQLModel
 from app.utils import utc_now
 
 
-class CalendarBlocks(SQLModel, table=True):  # type: ignore[call-arg]
+class CalendarBlock(SQLModel, table=True):  # type: ignore[call-arg]
     id: int | None = Field(default=None, primary_key=True)
     starts_at: datetime
     ends_at: datetime
