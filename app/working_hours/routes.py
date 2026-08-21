@@ -2,8 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from app.auth.dependencies import get_current_admin
+from app.auth.dependencies import get_current_admin, get_current_user_optional
 from app.core.database import SessionDep
+from app.core.enums import RoleEnum
 from app.users.models import User
 from app.utils import utc_now
 from app.working_hours.models import WorkingHours
@@ -52,3 +53,32 @@ def list_working_hours(session: SessionDep) -> list[WorkingHoursRead]:
     return [
         WorkingHoursRead.model_validate(working_hour) for working_hour in working_hours
     ]
+
+
+@router.get(
+    "/{working_hour_id}",
+    response_model=WorkingHoursRead,
+    status_code=status.HTTP_200_OK,
+)
+def read_working_hour(
+    session: SessionDep,
+    working_hour_id: int,
+    user: User | None = Depends(get_current_user_optional),
+) -> WorkingHoursRead:
+    today = utc_now().date()
+
+    query = select(WorkingHours).where(WorkingHours.id == working_hour_id)
+
+    if not user or user.role != RoleEnum.ADMIN:
+        query = query.where(WorkingHours.date >= today)
+
+    working_hour = session.exec(query).first()
+
+    if working_hour is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Fecha no encontrada"
+        )
+
+    response: WorkingHoursRead = WorkingHoursRead.model_validate(working_hour)
+
+    return response

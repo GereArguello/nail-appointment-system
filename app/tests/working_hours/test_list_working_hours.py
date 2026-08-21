@@ -3,7 +3,6 @@ from datetime import timedelta
 
 from fastapi import status
 from fastapi.testclient import TestClient
-from sqlmodel import Session
 
 from app.utils import utc_now
 from app.working_hours.models import WorkingHours
@@ -28,18 +27,10 @@ def test_should_list_working_hours(
 
 def test_should_not_list_past_working_hours(
     client: TestClient,
-    session: Session,
+    create_past_working_hours: Callable[..., WorkingHours],
     create_working_hours: Callable[..., WorkingHoursRead],
 ) -> None:
-    past = create_working_hours(date=utc_now().date().isoformat())
-
-    past_working_hour = session.get(WorkingHours, past.id)
-
-    assert past_working_hour is not None
-
-    past_working_hour.date = (utc_now() - timedelta(days=1)).date()
-
-    session.commit()
+    create_past_working_hours()
 
     future = create_working_hours(
         date=(utc_now() + timedelta(days=1)).date().isoformat()

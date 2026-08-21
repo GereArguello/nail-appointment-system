@@ -22,6 +22,7 @@ from app.tests.factories import (
 from app.users.models import User
 from app.users.schemas import UserRead
 from app.utils import utc_now
+from app.working_hours.models import WorkingHours
 from app.working_hours.schemas import WorkingHoursRead
 
 sqlite_url = "sqlite:///:memory:"
@@ -195,3 +196,25 @@ def create_working_hours_list(
         ]
 
     return _create_working_hours_list
+
+
+@pytest.fixture
+def create_past_working_hours(
+    session: Session,
+    create_working_hours: Callable[..., WorkingHoursRead],
+) -> Callable[..., WorkingHours]:
+    def _create_past_working_hours() -> WorkingHoursRead:
+        created = create_working_hours()
+
+        working_hour = session.get(WorkingHours, created.id)
+
+        assert working_hour is not None
+
+        working_hour.date = (utc_now() - timedelta(days=1)).date()
+
+        session.commit()
+        session.refresh(working_hour)
+
+        return cast(WorkingHoursRead, WorkingHoursRead.model_validate(working_hour))
+
+    return _create_past_working_hours
