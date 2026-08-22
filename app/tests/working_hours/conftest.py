@@ -1,39 +1,13 @@
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any, cast
+from typing import cast
 
 import pytest
-from fastapi import status
-from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.tests.factories import create_working_hours_data
-from app.users.schemas import UserRead
 from app.utils import utc_now
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
-
-
-@pytest.fixture
-def create_working_hours(
-    client: TestClient, admin_with_login: tuple[UserRead, str]
-) -> Callable[..., WorkingHourRead]:
-
-    def _create_working_hours(**overrides: Any) -> WorkingHourRead:
-        _, token = admin_with_login
-        data = create_working_hours_data(**overrides)
-
-        response = client.post(
-            "/working-hours/", json=data, headers={"Authorization": f"Bearer {token}"}
-        )
-
-        assert response.status_code == status.HTTP_201_CREATED
-
-        response_data: dict[str, Any] = response.json()
-
-        return cast(WorkingHourRead, WorkingHourRead.model_validate(response_data))
-
-    return _create_working_hours
 
 
 @pytest.fixture

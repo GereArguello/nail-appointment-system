@@ -6,19 +6,31 @@ from fastapi.testclient import TestClient
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.tests.calendar_blocks.helpers import make_calendar_block_datetime, parse_as_utc
 from app.users.schemas import UserRead
+from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_create_calendar_block(
-    client: TestClient, admin_with_login: tuple[UserRead, str]
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+    create_working_hours: Callable[..., WorkingHourRead],
 ) -> None:
     _, token = admin_with_login
 
     starts_at = make_calendar_block_datetime(days=1, hour=13)
     ends_at = make_calendar_block_datetime(days=1, hour=15)
 
+    create_working_hours(
+        date=parse_as_utc(starts_at).date().isoformat(),
+        start_time="09:00:00",
+        end_time="18:00:00",
+    )
+
     response = client.post(
         "/calendar-blocks/",
-        json={"starts_at": starts_at, "ends_at": ends_at},
+        json={
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
 
@@ -157,3 +169,111 @@ def test_should_reject_calendar_block_creation_without_authentication(
     )
 
     assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+def test_should_reject_calendar_block_without_working_hour(
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+) -> None:
+    _, token = admin_with_login
+
+    starts_at = make_calendar_block_datetime(days=1, hour=13)
+    ends_at = make_calendar_block_datetime(days=1, hour=15)
+
+    response = client.post(
+        "/calendar-blocks/",
+        json={
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.json()["detail"] == (
+        "No se puede bloquear un horario si no es día laborable"
+    )
+
+
+def test_should_reject_calendar_block_starting_before_working_hour(
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+    create_working_hours: Callable[..., WorkingHourRead],
+) -> None:
+    _, token = admin_with_login
+
+    starts_at = make_calendar_block_datetime(days=1, hour=8)
+    ends_at = make_calendar_block_datetime(days=1, hour=10)
+
+    create_working_hours(
+        date=parse_as_utc(starts_at).date().isoformat(),
+        start_time="09:00:00",
+        end_time="18:00:00",
+    )
+
+    response = client.post(
+        "/calendar-blocks/",
+        json={
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+
+
+def test_should_reject_calendar_block_ending_after_working_hour(
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+    create_working_hours: Callable[..., WorkingHourRead],
+) -> None:
+    _, token = admin_with_login
+
+    starts_at = make_calendar_block_datetime(days=1, hour=17)
+    ends_at = make_calendar_block_datetime(days=1, hour=19)
+
+    create_working_hours(
+        date=parse_as_utc(starts_at).date().isoformat(),
+        start_time="09:00:00",
+        end_time="18:00:00",
+    )
+
+    response = client.post(
+        "/calendar-blocks/",
+        json={
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == status.HTTP_409_CONFLICT
+
+
+def test_should_allow_calendar_block_matching_working_hour_bounds(
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+    create_working_hours: Callable[..., WorkingHourRead],
+) -> None:
+    _, token = admin_with_login
+
+    starts_at = make_calendar_block_datetime(days=1, hour=9)
+    ends_at = make_calendar_block_datetime(days=1, hour=18)
+
+    create_working_hours(
+        date=parse_as_utc(starts_at).date().isoformat(),
+        start_time="09:00:00",
+        end_time="18:00:00",
+    )
+
+    response = client.post(
+        "/calendar-blocks/",
+        json={
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == status.HTTP_201_CREATED

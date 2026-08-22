@@ -1,28 +1,56 @@
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any, cast
 
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
-from app.tests.calendar_blocks.helpers import make_calendar_block_datetime
+from app.tests.calendar_blocks.helpers import make_calendar_block_datetime, parse_as_utc
 from app.tests.factories import create_calendar_block_data
 from app.users.schemas import UserRead
 from app.utils import utc_now
+from app.working_hours.models import WorkingHour
+from app.working_hours.schemas import WorkingHourRead
+
+
+def ensure_working_hour(
+    session: Session,
+    create_working_hours: Callable[..., WorkingHourRead],
+    date: date,
+) -> None:
+    existing = session.exec(select(WorkingHour).where(WorkingHour.date == date)).first()
+
+    if existing is None:
+        create_working_hours(
+            date=date.isoformat(),
+            start_time="09:00:00",
+            end_time="18:00:00",
+        )
 
 
 @pytest.fixture
 def create_calendar_block(
-    client: TestClient, admin_with_login: tuple[UserRead, str]
+    client: TestClient,
+    session: Session,
+    admin_with_login: tuple[UserRead, str],
+    create_working_hours: Callable[..., WorkingHourRead],
 ) -> Callable[..., CalendarBlockRead]:
-    def _create_calendar_block(**overrides: Any) -> CalendarBlockRead:
 
+    def _create_calendar_block(**overrides: Any) -> CalendarBlockRead:
         _, token = admin_with_login
         data = create_calendar_block_data(**overrides)
+
+        starts_at = parse_as_utc(data["starts_at"])
+
+        ensure_working_hour(
+            session,
+            create_working_hours,
+            starts_at.date(),
+        )
 
         response = client.post(
             "/calendar-blocks/",
@@ -30,11 +58,11 @@ def create_calendar_block(
             headers={"Authorization": f"Bearer {token}"},
         )
 
-        assert response.status_code == status.HTTP_201_CREATED
+        assert response.status_code == status.HTTP_201_CREATED, response.json()
 
-        response_data: dict[str, Any] = response.json()
-
-        return cast(CalendarBlockRead, CalendarBlockRead.model_validate(response_data))
+        return cast(
+            CalendarBlockRead, CalendarBlockRead.model_validate(response.json())
+        )
 
     return _create_calendar_block
 

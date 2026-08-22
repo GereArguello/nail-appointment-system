@@ -11,9 +11,10 @@ from sqlmodel import Session, SQLModel
 from app.core.database import get_session
 from app.core.enums import RoleEnum
 from app.main import app
-from app.tests.factories import create_data
+from app.tests.factories import create_data, create_working_hours_data
 from app.users.models import User
 from app.users.schemas import UserRead
+from app.working_hours.schemas import WorkingHourRead
 
 sqlite_url = "sqlite:///:memory:"
 
@@ -106,3 +107,25 @@ def admin_with_login(
     admin = UserRead.model_validate(db_user)
 
     return admin, data["access_token"]
+
+
+@pytest.fixture
+def create_working_hours(
+    client: TestClient, admin_with_login: tuple[UserRead, str]
+) -> Callable[..., WorkingHourRead]:
+
+    def _create_working_hours(**overrides: Any) -> WorkingHourRead:
+        _, token = admin_with_login
+        data = create_working_hours_data(**overrides)
+
+        response = client.post(
+            "/working-hours/", json=data, headers={"Authorization": f"Bearer {token}"}
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        response_data: dict[str, Any] = response.json()
+
+        return cast(WorkingHourRead, WorkingHourRead.model_validate(response_data))
+
+    return _create_working_hours

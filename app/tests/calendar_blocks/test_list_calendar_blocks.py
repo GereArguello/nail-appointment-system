@@ -52,6 +52,11 @@ def test_should_list_past_calendar_blocks_as_admin(
 
     assert response.status_code == status.HTTP_200_OK
 
+    data = response.json()
+
+    assert len(data) == 6
+    assert data[0]["id"] == past.id
+
 
 def test_should_reject_past_calendar_blocks_range_for_non_admin(
     client: TestClient,

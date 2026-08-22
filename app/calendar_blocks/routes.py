@@ -1,12 +1,12 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockCreate, CalendarBlockRead
-from app.calendar_blocks.service import get_overlapping_block
+from app.calendar_blocks.service import validate_calendar_block_creation
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
 from app.users.models import User
@@ -21,13 +21,7 @@ def create_calendar_block(
     current_admin: User = Depends(get_current_admin),
 ) -> CalendarBlockRead:
 
-    existing_block = get_overlapping_block(session, data)
-
-    if existing_block:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El horario se superpone con otro bloqueo existente",
-        )
+    validate_calendar_block_creation(session, data)
 
     db_calendar_block = CalendarBlock(**data.model_dump())
 
