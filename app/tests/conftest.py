@@ -9,12 +9,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 
+from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.core.database import get_session
 from app.core.enums import RoleEnum, StatusEnum
 from app.main import app
 from app.services.models import Service
 from app.services.schemas import ServiceRead
+from app.tests.calendar_blocks.helpers import make_calendar_block_datetime
 from app.tests.factories import (
     create_calendar_block_data,
     create_data,
@@ -138,7 +140,7 @@ def create_service(
 
         assert response.status_code == status.HTTP_201_CREATED
 
-        return cast(UserRead, ServiceRead.model_validate(response.json()))
+        return cast(ServiceRead, ServiceRead.model_validate(response.json()))
 
     return _create_service
 
@@ -244,3 +246,45 @@ def create_calendar_block(
         return cast(CalendarBlockRead, CalendarBlockRead.model_validate(response_data))
 
     return _create_calendar_block
+
+
+@pytest.fixture
+def create_calendar_block_list(
+    create_calendar_block: Callable[..., CalendarBlockRead],
+) -> Callable[[int], list[CalendarBlockRead]]:
+    def _create_calendar_block_list(amount: int) -> list[CalendarBlockRead]:
+        return [
+            create_calendar_block(
+                starts_at=make_calendar_block_datetime(days=i + 1, hour=13),
+                ends_at=make_calendar_block_datetime(days=i + 1, hour=15),
+            )
+            for i in range(amount)
+        ]
+
+    return _create_calendar_block_list
+
+
+@pytest.fixture
+def create_past_calendar_block(
+    session: Session,
+    create_calendar_block: Callable[..., CalendarBlockRead],
+) -> Callable[..., CalendarBlockRead]:
+    def _create_past_calendar_block() -> CalendarBlockRead:
+        created = create_calendar_block(
+            starts_at=make_calendar_block_datetime(days=10, hour=13),
+            ends_at=make_calendar_block_datetime(days=10, hour=14),
+        )
+
+        calendar_block = session.get(CalendarBlock, created.id)
+
+        assert calendar_block is not None
+
+        calendar_block.starts_at = utc_now() - timedelta(days=2)
+        calendar_block.ends_at = utc_now() - timedelta(days=1)
+
+        session.commit()
+        session.refresh(calendar_block)
+
+        return cast(CalendarBlockRead, CalendarBlockRead.model_validate(calendar_block))
+
+    return _create_past_calendar_block
