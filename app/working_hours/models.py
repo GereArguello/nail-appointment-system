@@ -6,7 +6,7 @@ from sqlmodel import Field, SQLModel
 from app.core.enums import StatusEnum
 
 
-class WorkingHours(SQLModel, table=True):  # type: ignore[call-arg]
+class WorkingHour(SQLModel, table=True):  # type: ignore[call-arg]
     id: int | None = Field(default=None, primary_key=True)
 
     date: Date = Field(unique=True)

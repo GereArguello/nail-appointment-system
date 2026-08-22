@@ -24,8 +24,8 @@ from app.tests.factories import (
 from app.users.models import User
 from app.users.schemas import UserRead
 from app.utils import utc_now
-from app.working_hours.models import WorkingHours
-from app.working_hours.schemas import WorkingHoursRead
+from app.working_hours.models import WorkingHour
+from app.working_hours.schemas import WorkingHourRead
 
 sqlite_url = "sqlite:///:memory:"
 
@@ -165,9 +165,9 @@ def inactive_service(
 @pytest.fixture
 def create_working_hours(
     client: TestClient, admin_with_login: tuple[UserRead, str]
-) -> Callable[..., WorkingHoursRead]:
+) -> Callable[..., WorkingHourRead]:
 
-    def _create_working_hours(**overrides: Any) -> WorkingHoursRead:
+    def _create_working_hours(**overrides: Any) -> WorkingHourRead:
         _, token = admin_with_login
         data = create_working_hours_data(**overrides)
 
@@ -179,17 +179,17 @@ def create_working_hours(
 
         response_data: dict[str, Any] = response.json()
 
-        return cast(WorkingHoursRead, WorkingHoursRead.model_validate(response_data))
+        return cast(WorkingHourRead, WorkingHourRead.model_validate(response_data))
 
     return _create_working_hours
 
 
 @pytest.fixture
 def create_working_hours_list(
-    create_working_hours: Callable[..., WorkingHoursRead],
-) -> Callable[[int], list[WorkingHoursRead]]:
+    create_working_hours: Callable[..., WorkingHourRead],
+) -> Callable[[int], list[WorkingHourRead]]:
 
-    def _create_working_hours_list(amount: int) -> list[WorkingHoursRead]:
+    def _create_working_hours_list(amount: int) -> list[WorkingHourRead]:
         return [
             create_working_hours(
                 date=(utc_now() + timedelta(days=i + 1)).date().isoformat()
@@ -203,12 +203,12 @@ def create_working_hours_list(
 @pytest.fixture
 def create_past_working_hours(
     session: Session,
-    create_working_hours: Callable[..., WorkingHoursRead],
-) -> Callable[..., WorkingHours]:
-    def _create_past_working_hours() -> WorkingHoursRead:
+    create_working_hours: Callable[..., WorkingHourRead],
+) -> Callable[..., WorkingHour]:
+    def _create_past_working_hours() -> WorkingHourRead:
         created = create_working_hours()
 
-        working_hour = session.get(WorkingHours, created.id)
+        working_hour = session.get(WorkingHour, created.id)
 
         assert working_hour is not None
 
@@ -217,7 +217,7 @@ def create_past_working_hours(
         session.commit()
         session.refresh(working_hour)
 
-        return cast(WorkingHoursRead, WorkingHoursRead.model_validate(working_hour))
+        return cast(WorkingHourRead, WorkingHourRead.model_validate(working_hour))
 
     return _create_past_working_hours
 

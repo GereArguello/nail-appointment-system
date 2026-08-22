@@ -4,12 +4,12 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.users.schemas import UserRead
-from app.working_hours.models import WorkingHours
-from app.working_hours.schemas import WorkingHoursRead
+from app.working_hours.models import WorkingHour
+from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_read_working_hour_by_id(
-    client: TestClient, create_working_hours: Callable[..., WorkingHoursRead]
+    client: TestClient, create_working_hours: Callable[..., WorkingHourRead]
 ) -> None:
     working_hour = create_working_hours()
 
@@ -35,7 +35,7 @@ def test_should_return_not_found_for_nonexistent_working_hour_id(
 
 def test_should_return_not_found_for_past_working_hour(
     client: TestClient,
-    create_past_working_hours: Callable[..., WorkingHours],
+    create_past_working_hours: Callable[..., WorkingHour],
 ) -> None:
     past_working_hour = create_past_working_hours()
 
@@ -47,7 +47,7 @@ def test_should_return_not_found_for_past_working_hour(
 
 def test_should_read_past_working_hour_as_admin(
     client: TestClient,
-    create_past_working_hours: Callable[..., WorkingHours],
+    create_past_working_hours: Callable[..., WorkingHour],
     admin_with_login: tuple[UserRead, str],
 ) -> None:
     _, token = admin_with_login

@@ -9,7 +9,7 @@ from app.core.enums import StatusEnum
 from app.utils import utc_now
 
 
-class WorkingHoursCreate(SQLModel):
+class WorkingHourCreate(SQLModel):
     date: Date
     start_time: time
     end_time: time
@@ -34,7 +34,7 @@ class WorkingHoursCreate(SQLModel):
         return self
 
 
-class WorkingHoursRead(SQLModel):
+class WorkingHourRead(SQLModel):
     id: int
     date: Date
     start_time: time

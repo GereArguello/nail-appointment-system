@@ -5,13 +5,13 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.utils import utc_now
-from app.working_hours.models import WorkingHours
-from app.working_hours.schemas import WorkingHoursRead
+from app.working_hours.models import WorkingHour
+from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_list_working_hours(
     client: TestClient,
-    create_working_hours_list: Callable[[int], list[WorkingHoursRead]],
+    create_working_hours_list: Callable[[int], list[WorkingHourRead]],
 ) -> None:
     created = create_working_hours_list(3)
 
@@ -27,8 +27,8 @@ def test_should_list_working_hours(
 
 def test_should_not_list_past_working_hours(
     client: TestClient,
-    create_past_working_hours: Callable[..., WorkingHours],
-    create_working_hours: Callable[..., WorkingHoursRead],
+    create_past_working_hours: Callable[..., WorkingHour],
+    create_working_hours: Callable[..., WorkingHourRead],
 ) -> None:
     create_past_working_hours()
 
@@ -57,7 +57,7 @@ def test_should_return_empty_list_when_no_working_hours_exist(
 
 def test_should_list_working_hours_ordered_by_date(
     client: TestClient,
-    create_working_hours: Callable[..., WorkingHoursRead],
+    create_working_hours: Callable[..., WorkingHourRead],
 ) -> None:
     create_working_hours(date=(utc_now() + timedelta(days=3)).date().isoformat())
     create_working_hours(date=(utc_now() + timedelta(days=1)).date().isoformat())
