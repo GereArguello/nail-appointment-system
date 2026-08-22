@@ -1,9 +1,12 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
 from app.core.database import SessionDep
+from app.core.date_ranges import resolve_date_range
 from app.core.enums import RoleEnum
 from app.users.models import User
 from app.utils import utc_now
@@ -39,18 +42,28 @@ def create_working_hours(
 
 
 @router.get("/", response_model=list[WorkingHourRead], status_code=status.HTTP_200_OK)
-def list_working_hours(session: SessionDep) -> list[WorkingHourRead]:
-    today = utc_now().date()
-
-    statement = (
-        select(WorkingHour).where(WorkingHour.date >= today).order_by(WorkingHour.date)
+def list_working_hours(
+    session: SessionDep,
+    current_user: User | None = Depends(get_current_user_optional),
+    from_date: date | None = None,
+    to_date: date | None = None,
+) -> list[WorkingHourRead]:
+    start_date, end_date = resolve_date_range(
+        current_user=current_user,
+        from_date=from_date,
+        to_date=to_date,
     )
 
-    working_hours = session.exec(statement).all()
+    statement = (
+        select(WorkingHour)
+        .where(
+            WorkingHour.date >= start_date,
+            WorkingHour.date <= end_date,
+        )
+        .order_by(WorkingHour.date)
+    )
 
-    return [
-        WorkingHourRead.model_validate(working_hour) for working_hour in working_hours
-    ]
+    return list(session.exec(statement).all())
 
 
 @router.get(
