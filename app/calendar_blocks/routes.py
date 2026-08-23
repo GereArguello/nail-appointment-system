@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
@@ -10,6 +10,7 @@ from app.calendar_blocks.service import validate_calendar_block_creation
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
 from app.users.models import User
+from app.utils import as_utc, utc_now
 
 router = APIRouter(prefix="/calendar-blocks", tags=["calendar-blocks"])
 
@@ -64,3 +65,29 @@ def list_calendar_blocks(
     )
 
     return list(session.exec(query).all())
+
+
+@router.delete("/{calendar_block_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_calendar_block(
+    session: SessionDep,
+    calendar_block_id: int,
+    current_admin: User = Depends(get_current_admin),
+) -> None:
+    block = session.get(CalendarBlock, calendar_block_id)
+
+    if not block:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Calendar block no encontrado",
+        )
+
+    starts_at = as_utc(block.starts_at)
+
+    if starts_at <= utc_now():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No se puede eliminar un bloqueo pasado o ya iniciado",
+        )
+
+    session.delete(block)
+    session.commit()

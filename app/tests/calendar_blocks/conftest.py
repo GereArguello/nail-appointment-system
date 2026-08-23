@@ -9,10 +9,10 @@ from sqlmodel import Session, select
 
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
-from app.tests.calendar_blocks.helpers import make_calendar_block_datetime, parse_as_utc
+from app.tests.calendar_blocks.helpers import make_calendar_block_datetime
 from app.tests.factories import create_calendar_block_data
 from app.users.schemas import UserRead
-from app.utils import utc_now
+from app.utils import parse_as_utc, utc_now
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 

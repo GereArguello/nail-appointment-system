@@ -4,8 +4,9 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.calendar_blocks.schemas import CalendarBlockRead
-from app.tests.calendar_blocks.helpers import make_calendar_block_datetime, parse_as_utc
+from app.tests.calendar_blocks.helpers import make_calendar_block_datetime
 from app.users.schemas import UserRead
+from app.utils import parse_as_utc
 from app.working_hours.schemas import WorkingHourRead
 
 
