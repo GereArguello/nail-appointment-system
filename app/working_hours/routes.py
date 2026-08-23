@@ -1,12 +1,13 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
+from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
-from app.core.date_ranges import resolve_date_range
+from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
 from app.core.enums import RoleEnum
 from app.users.models import User
 from app.utils import utc_now
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/working-hours", tags=["working_hours"])
 
 
 @router.post("/", response_model=WorkingHourRead, status_code=status.HTTP_201_CREATED)
-def create_working_hours(
+def create_working_hour(
     session: SessionDep,
     data: WorkingHourCreate,
     current_admin: User = Depends(get_current_admin),
@@ -93,3 +94,52 @@ def read_working_hour(
     response: WorkingHourRead = WorkingHourRead.model_validate(working_hour)
 
     return response
+
+
+@router.delete("/{working_hour_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_working_hour(
+    session: SessionDep,
+    working_hour_id: int,
+    current_admin: User = Depends(get_current_admin),
+) -> None:
+    working_hour = session.get(WorkingHour, working_hour_id)
+
+    if not working_hour:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Horario laboral no encontrado",
+        )
+
+    now = utc_now()
+
+    if working_hour.date < now.date() or (
+        working_hour.date == now.date() and working_hour.start_time <= now.time()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No se puede eliminar un horario laboral pasado o ya iniciado",
+        )
+
+    start_datetime, end_datetime = date_range_as_datetime_utc(
+        working_hour.date,
+        working_hour.date,
+    )
+
+    blocks = session.exec(
+        select(CalendarBlock).where(
+            CalendarBlock.starts_at >= start_datetime,
+            CalendarBlock.starts_at <= end_datetime,
+        )
+    ).all()
+
+    try:
+        for block in blocks:
+            session.delete(block)
+
+        session.delete(working_hour)
+
+        session.commit()
+
+    except SQLAlchemyError:
+        session.rollback()
+        raise

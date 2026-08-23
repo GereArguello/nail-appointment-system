@@ -8,12 +8,19 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 
+from app.calendar_blocks.schemas import CalendarBlockRead
 from app.core.database import get_session
 from app.core.enums import RoleEnum
 from app.main import app
-from app.tests.factories import create_data, create_working_hours_data
+from app.tests.factories import (
+    create_calendar_block_data,
+    create_data,
+    create_working_hours_data,
+)
+from app.tests.helpers import ensure_working_hour
 from app.users.models import User
 from app.users.schemas import UserRead
+from app.utils import parse_as_utc
 from app.working_hours.schemas import WorkingHourRead
 
 sqlite_url = "sqlite:///:memory:"
@@ -129,3 +136,38 @@ def create_working_hours(
         return cast(WorkingHourRead, WorkingHourRead.model_validate(response_data))
 
     return _create_working_hours
+
+
+@pytest.fixture
+def create_calendar_block(
+    client: TestClient,
+    session: Session,
+    admin_with_login: tuple[UserRead, str],
+    create_working_hours: Callable[..., WorkingHourRead],
+) -> Callable[..., CalendarBlockRead]:
+
+    def _create_calendar_block(**overrides: Any) -> CalendarBlockRead:
+        _, token = admin_with_login
+        data = create_calendar_block_data(**overrides)
+
+        starts_at = parse_as_utc(data["starts_at"])
+
+        ensure_working_hour(
+            session,
+            create_working_hours,
+            starts_at.date(),
+        )
+
+        response = client.post(
+            "/calendar-blocks/",
+            json=data,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED, response.json()
+
+        return cast(
+            CalendarBlockRead, CalendarBlockRead.model_validate(response.json())
+        )
+
+    return _create_calendar_block

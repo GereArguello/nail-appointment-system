@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from typing import Any
 
-from app.tests.calendar_blocks.helpers import make_calendar_block_datetime
+from app.tests.helpers import make_calendar_block_datetime
 from app.utils import utc_now
 
 
