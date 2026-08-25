@@ -1,18 +1,14 @@
 from collections.abc import Callable
 from datetime import date, timedelta
-from typing import Any, cast
+from typing import cast
 
 import pytest
-from fastapi import status
-from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
-from app.tests.factories import create_calendar_block_data
 from app.tests.helpers import make_calendar_block_datetime
-from app.users.schemas import UserRead
-from app.utils import parse_as_utc, utc_now
+from app.utils import utc_now
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 
@@ -30,41 +26,6 @@ def ensure_working_hour(
             start_time="09:00:00",
             end_time="18:00:00",
         )
-
-
-@pytest.fixture
-def create_calendar_block(
-    client: TestClient,
-    session: Session,
-    admin_with_login: tuple[UserRead, str],
-    create_working_hours: Callable[..., WorkingHourRead],
-) -> Callable[..., CalendarBlockRead]:
-
-    def _create_calendar_block(**overrides: Any) -> CalendarBlockRead:
-        _, token = admin_with_login
-        data = create_calendar_block_data(**overrides)
-
-        starts_at = parse_as_utc(data["starts_at"])
-
-        ensure_working_hour(
-            session,
-            create_working_hours,
-            starts_at.date(),
-        )
-
-        response = client.post(
-            "/calendar-blocks/",
-            json=data,
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-        assert response.status_code == status.HTTP_201_CREATED, response.json()
-
-        return cast(
-            CalendarBlockRead, CalendarBlockRead.model_validate(response.json())
-        )
-
-    return _create_calendar_block
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime, time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
@@ -9,6 +9,7 @@ from app.calendar_blocks.schemas import CalendarBlockCreate, CalendarBlockRead
 from app.calendar_blocks.service import validate_calendar_block_creation
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
+from app.core.enums import RoleEnum
 from app.users.models import User
 from app.utils import as_utc, utc_now
 
@@ -81,6 +82,41 @@ def list_calendar_blocks(
     )
 
     return list(session.exec(query).all())
+
+
+@router.get(
+    "/{calendar_block_id}",
+    response_model=CalendarBlockRead,
+    status_code=status.HTTP_200_OK,
+    summary="Obtener un bloqueo de calendario",
+)
+def read_calendar_block(
+    session: SessionDep,
+    calendar_block_id: int,
+    current_user: User | None = Depends(get_current_user_optional),
+) -> CalendarBlockRead:
+    """Obtiene un bloqueo de calendario por su identificador.
+
+    Los usuarios públicos solo pueden consultar bloqueos actuales o futuros.
+    Los administradores también pueden consultar bloqueos pasados.
+    """
+    today_start = datetime.combine(utc_now().date(), time.min, tzinfo=UTC)
+
+    query = select(CalendarBlock).where(CalendarBlock.id == calendar_block_id)
+
+    if not current_user or current_user.role != RoleEnum.ADMIN:
+        query = query.where(CalendarBlock.starts_at >= today_start)
+
+    calendar_block = session.exec(query).first()
+
+    if calendar_block is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Bloqueo no encontrado"
+        )
+
+    response: CalendarBlockRead = CalendarBlockRead.model_validate(calendar_block)
+
+    return response
 
 
 @router.delete(
