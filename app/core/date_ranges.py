@@ -13,6 +13,11 @@ def resolve_date_range(
     from_date: date | None,
     to_date: date | None,
 ) -> tuple[date, date]:
+    """Resuelve y valida un rango de fechas para consultas.
+
+    Por defecto, la fecha final se establece 31 días después de la inicial.
+    Solo los administradores pueden consultar fechas pasadas.
+    """
     today = utc_now().date()
     is_admin = current_user is not None and current_user.role == RoleEnum.ADMIN
 
@@ -44,6 +49,7 @@ def date_range_as_datetime_utc(
     start_date: date,
     end_date: date,
 ) -> tuple[datetime, datetime]:
+    """Convierte fechas inicial y final en sus límites diarios como datetimes UTC."""
     start_datetime = datetime.combine(start_date, time.min, tzinfo=UTC)
     end_datetime = datetime.combine(end_date, time.max, tzinfo=UTC)
 

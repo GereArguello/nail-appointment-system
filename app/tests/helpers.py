@@ -13,6 +13,7 @@ def ensure_working_hour(
     create_working_hours: Callable[..., WorkingHourRead],
     date: date,
 ) -> None:
+    """Garantiza que exista un horario laboral para la fecha indicada"""
     existing = session.exec(select(WorkingHour).where(WorkingHour.date == date)).first()
 
     if existing is None:
@@ -28,6 +29,7 @@ def make_calendar_block_datetime(
     days: int = 1,
     hour: int,
 ) -> str:
+    """Genera una fecha y hora en UTC como cadena ISO 8601."""
     return (
         utc_now().replace(hour=hour, minute=0, second=0, microsecond=0)
         + timedelta(days=days)
@@ -37,6 +39,7 @@ def make_calendar_block_datetime(
 def create_range_for_calendar_block(
     *, working_hour_date: date, starts_at: time, ends_at: time
 ) -> tuple[str, str]:
+    """Genera el rango temporal de un bloqueo como cadenas ISO 8601 en UTC."""
     start_datetime = datetime.combine(
         working_hour_date, starts_at, tzinfo=UTC
     ).isoformat()

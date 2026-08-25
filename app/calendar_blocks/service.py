@@ -9,6 +9,7 @@ from app.working_hours.models import WorkingHour
 def get_overlapping_block(
     session: Session, data: CalendarBlockCreate
 ) -> CalendarBlock | None:
+    """Busca un bloqueo existente que se superponga con el rango indicado."""
     query = select(CalendarBlock).where(
         CalendarBlock.starts_at < data.ends_at,
         CalendarBlock.ends_at > data.starts_at,
@@ -23,6 +24,11 @@ def validate_calendar_block_creation(
     session: Session,
     data: CalendarBlockCreate,
 ) -> None:
+    """Valida las reglas necesarias para crear un bloqueo de calendario.
+
+    El bloqueo debe estar dentro de un horario laboral existente
+    y no puede superponerse con otros bloqueos.
+    """
     working_hour = session.exec(
         select(WorkingHour).where(
             WorkingHour.date == data.starts_at.date(),

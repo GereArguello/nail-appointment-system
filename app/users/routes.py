@@ -11,9 +11,16 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post(
-    "/", response_model=UserRead, status_code=status.HTTP_201_CREATED, summary=""
+    "/",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear usuario",
 )
 def create_user(user: UserCreate, session: SessionDep) -> UserRead:
+    """Registra un nuevo usuario.
+
+    El correo electrónico debe ser único.
+    """
     data = user.model_dump(exclude={"password", "password2"})
 
     db_user = User(
@@ -36,6 +43,12 @@ def create_user(user: UserCreate, session: SessionDep) -> UserRead:
     return response
 
 
-@router.get("/me", response_model=UserRead, status_code=status.HTTP_200_OK, summary="")
+@router.get(
+    "/me",
+    response_model=UserRead,
+    status_code=status.HTTP_200_OK,
+    summary="Obtener usuario actual",
+)
 def read_me(current_user: User = Depends(get_current_user)) -> UserRead:
+    """Obtiene la información del usuario autenticado."""
     return current_user

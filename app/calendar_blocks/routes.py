@@ -15,12 +15,22 @@ from app.utils import as_utc, utc_now
 router = APIRouter(prefix="/calendar-blocks", tags=["calendar-blocks"])
 
 
-@router.post("/", response_model=CalendarBlockRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=CalendarBlockRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear un bloqueo de calendario",
+)
 def create_calendar_block(
     session: SessionDep,
     data: CalendarBlockCreate,
     current_admin: User = Depends(get_current_admin),
 ) -> CalendarBlockRead:
+    """Crea un nuevo bloqueo de calendario.
+
+    El bloqueo debe estar dentro de un horario laboral existente
+    y no puede superponerse con otros bloqueos.
+    """
 
     validate_calendar_block_creation(session, data)
 
@@ -39,6 +49,7 @@ def create_calendar_block(
     "/",
     response_model=list[CalendarBlockRead],
     status_code=status.HTTP_200_OK,
+    summary="Listar bloqueos de calendario",
 )
 def list_calendar_blocks(
     session: SessionDep,
@@ -46,6 +57,11 @@ def list_calendar_blocks(
     from_date: date | None = None,
     to_date: date | None = None,
 ) -> list[CalendarBlockRead]:
+    """Lista los bloqueos de calendario dentro del rango indicado.
+
+    Por defecto, consulta desde hoy hasta 31 días después.
+    Solo los administradores pueden consultar fechas pasadas.
+    """
 
     start_date, end_date = resolve_date_range(
         current_user=current_user,
@@ -67,12 +83,20 @@ def list_calendar_blocks(
     return list(session.exec(query).all())
 
 
-@router.delete("/{calendar_block_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{calendar_block_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar un bloqueo de calendario",
+)
 def delete_calendar_block(
     session: SessionDep,
     calendar_block_id: int,
     current_admin: User = Depends(get_current_admin),
 ) -> None:
+    """Elimina un bloqueo de calendario.
+
+    Solo pueden eliminarse bloqueos que aún no hayan comenzado.
+    """
     block = session.get(CalendarBlock, calendar_block_id)
 
     if not block:

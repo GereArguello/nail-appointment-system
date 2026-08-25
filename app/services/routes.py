@@ -24,6 +24,10 @@ def create_service(
     session: SessionDep,
     current_admin: User = Depends(get_current_admin),
 ) -> ServiceRead:
+    """Crea un nuevo servicio.
+
+    El nombre del servicio debe ser único.
+    """
     data = service.model_dump()
     db_service = Service(**data)
 
@@ -43,12 +47,22 @@ def create_service(
     return response
 
 
-@router.get("/", response_model=list[ServiceRead], status_code=http_status.HTTP_200_OK)
+@router.get(
+    "/",
+    response_model=list[ServiceRead],
+    status_code=http_status.HTTP_200_OK,
+    summary="Listar servicios",
+)
 def list_services(
     session: SessionDep,
     status: StatusEnum | None = None,
     current_user: User | None = Depends(get_current_user_optional),
 ) -> list[ServiceRead]:
+    """Lista los servicios disponibles.
+
+    Los usuarios públicos solo pueden consultar servicios activos.
+    Los administradores pueden consultar todos y filtrarlos por estado.
+    """
     query = select(Service)
 
     if current_user and current_user.role == RoleEnum.ADMIN:
@@ -66,12 +80,18 @@ def list_services(
     "/{service_id}",
     response_model=ServiceRead,
     status_code=http_status.HTTP_200_OK,
+    summary="Obtener servicio",
 )
 def read_service(
     session: SessionDep,
     service_id: int,
     current_user: User | None = Depends(get_current_user_optional),
 ) -> ServiceRead:
+    """Obtiene un servicio por su identificador.
+
+    Los usuarios públicos solo pueden consultar servicios activos.
+    Los administradores también pueden consultar servicios inactivos.
+    """
     query = select(Service).where(Service.id == service_id)
 
     if not (current_user and current_user.role == RoleEnum.ADMIN):

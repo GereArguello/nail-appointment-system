@@ -13,6 +13,10 @@ password_hash = PasswordHash.recommended()
 
 
 def create_access_token(data: dict, expires_delta: timedelta) -> str:
+    """Genera un token JWT de acceso con el tiempo de expiración indicado.
+
+    Agrega los claims de expiración, emisión, identificador único y tipo de token.
+    """
     to_encode = data.copy()
     issued_at = datetime.now(UTC)
     expire = issued_at + expires_delta
@@ -26,6 +30,10 @@ def create_access_token(data: dict, expires_delta: timedelta) -> str:
 
 
 def decode_token(token: str) -> dict[str, Any]:
+    """Decodifica y valida un token JWT.
+
+    Rechaza tokens inválidos o expirados con un error de autenticación.
+    """
     try:
         payload = cast(
             dict[str, Any],

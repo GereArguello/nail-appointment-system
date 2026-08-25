@@ -17,12 +17,21 @@ from app.working_hours.schemas import WorkingHourCreate, WorkingHourRead
 router = APIRouter(prefix="/working-hours", tags=["working_hours"])
 
 
-@router.post("/", response_model=WorkingHourRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=WorkingHourRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear horario laboral",
+)
 def create_working_hour(
     session: SessionDep,
     data: WorkingHourCreate,
     current_admin: User = Depends(get_current_admin),
 ) -> WorkingHourRead:
+    """Crea un nuevo horario laboral.
+
+    Solo puede existir un horario laboral por fecha.
+    """
     working_hours_data = data.model_dump()
     db_working_hours = WorkingHour(**working_hours_data)
 
@@ -42,13 +51,23 @@ def create_working_hour(
     return response
 
 
-@router.get("/", response_model=list[WorkingHourRead], status_code=status.HTTP_200_OK)
+@router.get(
+    "/",
+    response_model=list[WorkingHourRead],
+    status_code=status.HTTP_200_OK,
+    summary="Listar horarios laborales",
+)
 def list_working_hours(
     session: SessionDep,
     current_user: User | None = Depends(get_current_user_optional),
     from_date: date | None = None,
     to_date: date | None = None,
 ) -> list[WorkingHourRead]:
+    """Lista los horarios laborales dentro del rango indicado.
+
+    Por defecto, consulta desde hoy hasta 31 días después.
+    Solo los administradores pueden consultar fechas pasadas.
+    """
     start_date, end_date = resolve_date_range(
         current_user=current_user,
         from_date=from_date,
@@ -71,12 +90,18 @@ def list_working_hours(
     "/{working_hour_id}",
     response_model=WorkingHourRead,
     status_code=status.HTTP_200_OK,
+    summary="Obtener horario laboral",
 )
 def read_working_hour(
     session: SessionDep,
     working_hour_id: int,
     current_user: User | None = Depends(get_current_user_optional),
 ) -> WorkingHourRead:
+    """Obtiene un horario laboral por su identificador.
+
+    Los usuarios públicos solo pueden consultar fechas actuales o futuras.
+    Los administradores también pueden consultar fechas pasadas.
+    """
     today = utc_now().date()
 
     query = select(WorkingHour).where(WorkingHour.id == working_hour_id)
@@ -96,12 +121,20 @@ def read_working_hour(
     return response
 
 
-@router.delete("/{working_hour_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{working_hour_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar horario laboral",
+)
 def delete_working_hour(
     session: SessionDep,
     working_hour_id: int,
     current_admin: User = Depends(get_current_admin),
 ) -> None:
+    """Elimina un horario laboral que aún no haya comenzado.
+
+    También elimina los bloqueos de calendario asociados a esa fecha.
+    """
     working_hour = session.get(WorkingHour, working_hour_id)
 
     if not working_hour:

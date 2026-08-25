@@ -18,6 +18,10 @@ def get_current_user(
     token: str = Depends(oauth2_scheme),
     session: Session = Depends(get_session),
 ) -> User:
+    """Obtiene el usuario autenticado a partir de un token de acceso válido.
+
+    Rechaza tokens inválidos y usuarios inexistentes o inactivos.
+    """
     payload = decode_token(token)
 
     if payload.get("type") != "access":
@@ -48,6 +52,7 @@ def get_current_user(
 def get_current_admin(
     user: User = Depends(get_current_user),
 ) -> User:
+    """Obtiene el usuario autenticado si posee el rol de administrador."""
     if user.role is not RoleEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -61,6 +66,11 @@ def get_current_user_optional(
     token: str | None = Depends(oauth2_scheme_optional),
     session: Session = Depends(get_session),
 ) -> User | None:
+    """Obtiene el usuario autenticado cuando hay credenciales disponibles.
+
+    Retorna None si no se proporciona un token o el usuario no puede
+    ser autenticado.
+    """
     if not token:
         return None
 

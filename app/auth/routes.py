@@ -8,11 +8,19 @@ from app.core.database import SessionDep
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=Token, status_code=status.HTTP_200_OK, summary="")
+@router.post(
+    "/login",
+    response_model=Token,
+    status_code=status.HTTP_200_OK,
+    summary="Iniciar sesión",
+)
 def login(
     session: SessionDep, form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Token:
+    """Autentica al usuario y genera un token de acceso.
 
+    Las credenciales deben corresponder a un usuario existente y activo.
+    """
     email = form_data.username.strip().lower()
 
     user = authenticate_user(session=session, email=email, password=form_data.password)
