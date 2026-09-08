@@ -1,11 +1,21 @@
-from enum import Enum
+from enum import StrEnum
 
 
-class RoleEnum(Enum):
+class RoleEnum(StrEnum):
     ADMIN = "admin"
     CUSTOMER = "customer"
 
 
-class StatusEnum(Enum):
+class StatusEnum(StrEnum):
     ACTIVE = "active"
     INACTIVE = "inactive"
+
+
+class AppointmentStatusEnum(StrEnum):
+    PENDING_PAYMENT = "pending_payment"
+    PENDING_CONFIRMATION = "pending_confirmation"
+    CONFIRMED = "confirmed"
+    COMPLETED = "completed"
+    CANCELLED_BY_CLIENT = "cancelled_by_client"
+    CANCELLED_BY_ADMIN = "cancelled_by_admin"
+    NO_SHOW = "no_show"

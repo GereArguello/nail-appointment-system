@@ -1,10 +1,14 @@
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String
-from sqlmodel import Column, Field, SQLModel
+from sqlmodel import Column, Field, Relationship, SQLModel
 
 from app.core.enums import RoleEnum, StatusEnum
 from app.utils import utc_now
+
+if TYPE_CHECKING:
+    from app.appointments.models import Appointment
 
 
 class UserBase(SQLModel):
@@ -40,3 +44,5 @@ class User(UserBase, table=True):  # type: ignore[call-arg]
     updated_at: datetime = Field(
         default_factory=utc_now, sa_column_kwargs={"onupdate": utc_now}
     )
+
+    appointments: list["Appointment"] = Relationship(back_populates="user")

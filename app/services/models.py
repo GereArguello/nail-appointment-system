@@ -1,9 +1,13 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.enums import StatusEnum
 from app.utils import utc_now
+
+if TYPE_CHECKING:
+    from app.appointments.models import Appointment
 
 
 class Service(SQLModel, table=True):  # type: ignore[call-arg]
@@ -26,3 +30,5 @@ class Service(SQLModel, table=True):  # type: ignore[call-arg]
     updated_at: datetime = Field(
         default_factory=utc_now, sa_column_kwargs={"onupdate": utc_now}
     )
+
+    appointments: list["Appointment"] = Relationship(back_populates="service")
