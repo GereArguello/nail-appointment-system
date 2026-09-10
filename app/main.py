@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.appointments import routes as appointment_router
 from app.auth import routes as auth_router
 from app.business_settings import routes as business_settings_router
 from app.calendar_blocks import routes as calendar_blocks_router
@@ -15,6 +16,7 @@ app.include_router(auth_router.router)
 app.include_router(services_router.router)
 app.include_router(working_hours_router.router)
 app.include_router(calendar_blocks_router.router)
+app.include_router(appointment_router.router)
 
 
 @app.get("/")

@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import cast
 
 from fastapi import HTTPException, status
 from sqlmodel import select
@@ -10,16 +11,11 @@ from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc
 from app.services.models import Service
+from app.utils import utc_now
 from app.working_hours.models import WorkingHour
 
 
-def calculate_appointment_time_range(
-    appointment: AppointmentCreate, session: SessionDep
-) -> tuple[datetime, datetime]:
-    """Calcula el rango de tiempo ocupado por una cita.
-
-    Contempla la duración del servicio y los buffers configurados
-    antes y después del mismo."""
+def get_service_or_404(appointment: AppointmentCreate, session: SessionDep) -> Service:
     service = session.get(Service, appointment.service_id)
 
     if not service:
@@ -27,6 +23,30 @@ def calculate_appointment_time_range(
             status_code=status.HTTP_404_NOT_FOUND, detail="Servicio no encontrado"
         )
 
+    return cast(Service, service)
+
+
+def get_business_settings_or_409(
+    session: SessionDep,
+) -> BusinessSettings:
+    business_settings = session.exec(select(BusinessSettings)).first()
+
+    if business_settings is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="El negocio aún no está configurado para recibir citas",
+        )
+
+    return cast(BusinessSettings, business_settings)
+
+
+def calculate_appointment_time_range(
+    appointment: AppointmentCreate, service: Service
+) -> tuple[datetime, datetime]:
+    """Calcula el rango de tiempo ocupado por una cita.
+
+    Contempla la duración del servicio y los buffers configurados
+    antes y después del mismo."""
     start_time = appointment.starts_at - timedelta(
         minutes=service.buffer_before_minutes
     )
@@ -47,13 +67,7 @@ def validate_within_working_hours(
 
     El rango ocupado debe estar contenido en un horario laboral existente,
     contemplando la tolerancia de finalización configurada para el negocio."""
-    business_settings = session.exec(select(BusinessSettings)).first()
-
-    if business_settings is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="La configuración del negocio no está disponible",
-        )
+    business_settings = get_business_settings_or_409(session)
 
     tolerance_minutes = business_settings.appointment_end_tolerance_minutes
 
@@ -122,3 +136,19 @@ def validate_no_appointment_overlap(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail="Horario ya ocupado"
             )
+
+
+def resolve_appointment_payment_terms(
+    service: Service, session: SessionDep
+) -> tuple[int, int, datetime | None]:
+    agreed_price = service.price
+    agreed_deposit = service.deposit_amount
+    payment_expires_at: datetime | None = None
+
+    if agreed_deposit > 0:
+        business_settings = get_business_settings_or_409(session)
+        payment_expires_at = utc_now() + timedelta(
+            hours=business_settings.deposit_payment_expiration_hours
+        )
+
+    return agreed_price, agreed_deposit, payment_expires_at

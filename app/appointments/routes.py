@@ -1,0 +1,72 @@
+from datetime import timedelta
+
+from fastapi import APIRouter, Depends, status
+
+from app.appointments.models import Appointment
+from app.appointments.schemas import AppointmentCreate, AppointmentRead
+from app.appointments.service import (
+    calculate_appointment_time_range,
+    get_service_or_404,
+    resolve_appointment_payment_terms,
+    validate_no_appointment_overlap,
+    validate_no_calendar_block_overlap,
+    validate_within_working_hours,
+)
+from app.auth.dependencies import get_current_user
+from app.core.database import SessionDep
+from app.core.enums import AppointmentStatusEnum
+from app.users.models import User
+
+router = APIRouter(prefix="/appointments", tags=["appointments"])
+
+
+@router.post("/", response_model=AppointmentRead, status_code=status.HTTP_201_CREATED)
+def create_appointment(
+    appointment_data: AppointmentCreate,
+    session: SessionDep,
+    current_user: User = Depends(get_current_user),
+) -> AppointmentRead:
+
+    service = get_service_or_404(appointment_data, session)
+
+    start_time, end_time = calculate_appointment_time_range(appointment_data, service)
+
+    validate_within_working_hours(start_time, end_time, session)
+
+    validate_no_calendar_block_overlap(start_time, end_time, session)
+
+    validate_no_appointment_overlap(start_time, end_time, session)
+
+    appointment_ends_at = appointment_data.starts_at + timedelta(
+        minutes=service.duration_minutes
+    )
+
+    agreed_price, agreed_deposit, payment_expires_at = (
+        resolve_appointment_payment_terms(service, session)
+    )
+
+    appointment_status = (
+        AppointmentStatusEnum.PENDING_CONFIRMATION
+        if payment_expires_at is None
+        else AppointmentStatusEnum.PENDING_PAYMENT
+    )
+
+    appointment = Appointment(
+        user_id=current_user.id,
+        service_id=appointment_data.service_id,
+        starts_at=appointment_data.starts_at,
+        ends_at=appointment_ends_at,
+        status=appointment_status,
+        agreed_price=agreed_price,
+        agreed_deposit=agreed_deposit,
+        payment_expires_at=payment_expires_at,
+        description=appointment_data.description,
+    )
+
+    session.add(appointment)
+    session.commit()
+    session.refresh(appointment)
+
+    appointment_read: AppointmentRead = AppointmentRead.model_validate(appointment)
+
+    return appointment_read
