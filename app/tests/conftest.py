@@ -8,11 +8,15 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 
+import app.models as models  # noqa: F401
+from app.business_settings.models import BusinessSettings
+from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.core.database import get_session
 from app.core.enums import RoleEnum
 from app.main import app
 from app.tests.factories import (
+    create_business_settings_data,
     create_calendar_block_data,
     create_data,
     create_working_hours_data,
@@ -171,3 +175,23 @@ def create_calendar_block(
         )
 
     return _create_calendar_block
+
+
+@pytest.fixture
+def create_business_settings(
+    session: Session,
+) -> Callable[..., BusinessSettingsRead]:
+    def _create_business_settings(**overrides: Any) -> BusinessSettingsRead:
+        data = create_business_settings_data(**overrides)
+
+        business_settings = BusinessSettings(**data)
+
+        session.add(business_settings)
+        session.commit()
+        session.refresh(business_settings)
+
+        return cast(
+            BusinessSettingsRead, BusinessSettingsRead.model_validate(business_settings)
+        )
+
+    return _create_business_settings

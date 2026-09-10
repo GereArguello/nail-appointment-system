@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 
 from app.auth import routes as auth_router
+from app.business_settings import routes as business_settings_router
 from app.calendar_blocks import routes as calendar_blocks_router
 from app.services import routes as services_router
 from app.users import routes as users_router
@@ -8,6 +9,7 @@ from app.working_hours import routes as working_hours_router
 
 app = FastAPI()
 
+app.include_router(business_settings_router.router)
 app.include_router(users_router.router)
 app.include_router(auth_router.router)
 app.include_router(services_router.router)

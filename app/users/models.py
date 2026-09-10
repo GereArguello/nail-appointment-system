@@ -19,7 +19,6 @@ class UserBase(SQLModel):
 
 
 class User(UserBase, table=True):  # type: ignore[call-arg]
-    __tablename__ = "users"
     id: int | None = Field(default=None, primary_key=True)
 
     email: str = Field(

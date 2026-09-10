@@ -53,3 +53,12 @@ def create_calendar_block_data(**overrides: Any) -> dict[str, Any]:
     data.update(overrides)
 
     return data
+
+
+def create_business_settings_data(**overrides: Any) -> dict[str, Any]:
+
+    data = {"appointment_end_tolerance_minutes": 0}
+
+    data.update(overrides)
+
+    return data
