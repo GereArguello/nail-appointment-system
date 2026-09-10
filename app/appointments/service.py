@@ -16,6 +16,10 @@ from app.working_hours.models import WorkingHour
 
 
 def get_service_or_404(appointment: AppointmentCreate, session: SessionDep) -> Service:
+    """Obtiene el servicio asociado a una cita.
+
+    Lanza un error 404 si el servicio solicitado no existe.
+    """
     service = session.get(Service, appointment.service_id)
 
     if not service:
@@ -29,6 +33,10 @@ def get_service_or_404(appointment: AppointmentCreate, session: SessionDep) -> S
 def get_business_settings_or_409(
     session: SessionDep,
 ) -> BusinessSettings:
+    """Obtiene la configuración actual del negocio.
+    Lanza un error 409 si el negocio aún no fue configurado
+    para recibir citas.
+    """
     business_settings = session.exec(select(BusinessSettings)).first()
 
     if business_settings is None:
@@ -141,6 +149,12 @@ def validate_no_appointment_overlap(
 def resolve_appointment_payment_terms(
     service: Service, session: SessionDep
 ) -> tuple[int, int, datetime | None]:
+    """Resuelve las condiciones de pago de una cita.
+
+    Toma el precio y la seña configurados en el servicio y,
+    cuando corresponde una seña, calcula la fecha de expiración del pago
+    según la configuración del negocio.
+    """
     agreed_price = service.price
     agreed_deposit = service.deposit_amount
     payment_expires_at: datetime | None = None

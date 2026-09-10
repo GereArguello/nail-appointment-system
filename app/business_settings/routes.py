@@ -17,6 +17,11 @@ def read_business_settings(
     session: SessionDep,
     current_user: User = Depends(get_current_admin),
 ) -> BusinessSettingsRead:
+    """Obtiene la configuración actual del negocio.
+
+    Si la configuración aún no existe, crea una utilizando los valores predeterminados.
+    Requiere permisos de administrador.
+    """
     return get_or_create_business_settings(session)
 
 
@@ -26,6 +31,12 @@ def update_business_settings(
     data: BusinessSettingsUpdate,
     user: User = Depends(get_current_admin),
 ) -> BusinessSettingsRead:
+    """Actualiza parcialmente la configuración del negocio.
+
+    Modifica únicamente los campos proporcionados en la solicitud.
+    Si la configuración aún no existe, la crea con los valores predeterminados antes de
+    aplicar los cambios. Requiere permisos de administrador.
+    """
     business_settings = get_or_create_business_settings(session)
 
     update_data = data.model_dump(exclude_unset=True)

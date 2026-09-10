@@ -26,6 +26,16 @@ def create_appointment(
     session: SessionDep,
     current_user: User = Depends(get_current_user),
 ) -> AppointmentRead:
+    """Crea una nueva cita para el usuario autenticado.
+
+    Valida la disponibilidad del horario solicitado, contemplando
+    horarios laborales, bloqueos de calendario, citas existentes
+    y buffers del servicio.
+
+    Define la duración real de la cita, conserva el precio y la seña
+    acordados al momento de reservar, calcula la expiración del
+    pago cuando corresponde y asigna el estado inicial de la cita.
+    """
 
     service = get_service_or_404(appointment_data, session)
 
