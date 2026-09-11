@@ -1,14 +1,31 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
+from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
 from app.core.enums import AppointmentStatusEnum
+from app.utils import as_utc
 
 
 class AppointmentCreate(SQLModel):
     service_id: int
     starts_at: datetime
     description: str | None = Field(default=None, max_length=500)
+
+    @field_validator("starts_at")
+    @classmethod
+    def validate_starts_at(cls, value: datetime) -> datetime:
+        if as_utc(value) < datetime.now(UTC):
+            raise ValueError("La fecha de la cita no puede estar en el pasado")
+
+        return value
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def normalize_description(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip() or None
 
 
 class AppointmentRead(SQLModel):

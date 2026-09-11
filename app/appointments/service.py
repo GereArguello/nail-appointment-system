@@ -74,17 +74,25 @@ def validate_within_working_hours(
     """Valida que una cita se encuentre dentro del horario laboral.
 
     El rango ocupado debe estar contenido en un horario laboral existente,
-    contemplando la tolerancia de finalización configurada para el negocio."""
+    contemplando las tolerancias de inicio y finalización configuradas
+    para el negocio.
+    """
     business_settings = get_business_settings_or_409(session)
 
-    tolerance_minutes = business_settings.appointment_end_tolerance_minutes
+    adjusted_start_time = (
+        start_time
+        + timedelta(minutes=business_settings.appointment_start_tolerance_minutes)
+    ).time()
 
-    end_time_with_tolerance = (end_time - timedelta(minutes=tolerance_minutes)).time()
+    adjusted_end_time = (
+        end_time
+        - timedelta(minutes=business_settings.appointment_end_tolerance_minutes)
+    ).time()
 
     query = select(WorkingHour).where(
         (WorkingHour.date == start_time.date())
-        & (WorkingHour.start_time <= start_time.time())
-        & (WorkingHour.end_time >= end_time_with_tolerance)
+        & (WorkingHour.start_time <= adjusted_start_time)
+        & (WorkingHour.end_time >= adjusted_end_time)
     )
 
     working_hour = session.exec(query).first()
@@ -111,7 +119,8 @@ def validate_no_calendar_block_overlap(
 
     if calendar_block:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Horario no disponible"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Horario bloqueado por el administrador",
         )
 
 

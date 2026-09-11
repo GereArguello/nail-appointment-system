@@ -1,4 +1,5 @@
 from collections.abc import Callable, Generator, Iterator
+from datetime import datetime, timedelta
 from typing import Any, cast
 
 import pytest
@@ -9,16 +10,20 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel
 
 import app.models as models  # noqa: F401
+from app.appointments.models import Appointment
+from app.appointments.schemas import AppointmentRead
 from app.business_settings.models import BusinessSettings
 from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.core.database import get_session
-from app.core.enums import RoleEnum
+from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.main import app
+from app.services.schemas import ServiceRead
 from app.tests.factories import (
     create_business_settings_data,
     create_calendar_block_data,
     create_data,
+    create_service_data,
     create_working_hours_data,
 )
 from app.tests.helpers import ensure_working_hour
@@ -178,6 +183,29 @@ def create_calendar_block(
 
 
 @pytest.fixture
+def create_service(
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+) -> Callable[..., ServiceRead]:
+    _, token = admin_with_login
+
+    def _create_service(**overrides: Any) -> ServiceRead:
+        data = create_service_data(**overrides)
+
+        response = client.post(
+            "/services/",
+            json=data,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+        assert response.status_code == status.HTTP_201_CREATED
+
+        return cast(ServiceRead, ServiceRead.model_validate(response.json()))
+
+    return _create_service
+
+
+@pytest.fixture
 def create_business_settings(
     session: Session,
 ) -> Callable[..., BusinessSettingsRead]:
@@ -195,3 +223,33 @@ def create_business_settings(
         )
 
     return _create_business_settings
+
+
+@pytest.fixture
+def create_appointment(
+    session: Session,
+) -> Callable[..., AppointmentRead]:
+    def _create_appointment(
+        user_id: int,
+        service: ServiceRead,
+        starts_at: datetime,
+        **overrides: Any,
+    ) -> AppointmentRead:
+        appointment = Appointment(
+            user_id=user_id,
+            service_id=service.id,
+            starts_at=starts_at,
+            ends_at=starts_at + timedelta(minutes=service.duration_minutes),
+            status=AppointmentStatusEnum.CONFIRMED,
+            agreed_price=service.price,
+            agreed_deposit=service.deposit_amount,
+            **overrides,
+        )
+
+        session.add(appointment)
+        session.commit()
+        session.refresh(appointment)
+
+        return cast(AppointmentRead, AppointmentRead.model_validate(appointment))
+
+    return _create_appointment

@@ -6,7 +6,8 @@ from app.utils import utc_now
 
 
 class BusinessSettingsBase(SQLModel):
-    appointment_end_tolerance_minutes: int = Field(default=0, ge=0)
+    appointment_start_tolerance_minutes: int = Field(default=10, ge=0)
+    appointment_end_tolerance_minutes: int = Field(default=10, ge=0)
     deposit_payment_expiration_hours: int = Field(default=24, ge=1, le=168)
 
 

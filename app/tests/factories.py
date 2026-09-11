@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from app.tests.helpers import make_calendar_block_datetime
@@ -57,7 +57,27 @@ def create_calendar_block_data(**overrides: Any) -> dict[str, Any]:
 
 def create_business_settings_data(**overrides: Any) -> dict[str, Any]:
 
-    data = {"appointment_end_tolerance_minutes": 0}
+    data = {
+        "appointment_start_tolerance_minutes": 10,
+        "appointment_end_tolerance_minutes": 10,
+        "deposit_payment_expiration_hours": 24,
+    }
+
+    data.update(overrides)
+
+    return data
+
+
+def create_appointment_data(
+    service_id: int,
+    starts_at: datetime,
+    **overrides: Any,
+) -> dict[str, Any]:
+    data = {
+        "service_id": service_id,
+        "starts_at": starts_at.isoformat(),
+        "description": "Diseño francés con detalles dorados",
+    }
 
     data.update(overrides)
 

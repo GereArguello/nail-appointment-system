@@ -6,6 +6,10 @@ from app.business_settings.models import BusinessSettingsBase
 
 
 class BusinessSettingsUpdate(SQLModel):
+    appointment_start_tolerance_minutes: int | None = Field(
+        default=None,
+        ge=0,
+    )
     appointment_end_tolerance_minutes: int | None = Field(
         default=None,
         ge=0,
