@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentCreate, AppointmentRead
@@ -14,7 +14,7 @@ from app.appointments.service import (
 )
 from app.auth.dependencies import get_current_user
 from app.core.database import SessionDep
-from app.core.enums import AppointmentStatusEnum
+from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.users.models import User
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
@@ -80,3 +80,27 @@ def create_appointment(
     appointment_read: AppointmentRead = AppointmentRead.model_validate(appointment)
 
     return appointment_read
+
+
+@router.get(
+    "/{appointment_id}", response_model=AppointmentRead, status_code=status.HTTP_200_OK
+)
+def read_appointment(
+    appointment_id: int, session: SessionDep, user: User = Depends(get_current_user)
+) -> AppointmentRead:
+    appointment = session.get(Appointment, appointment_id)
+
+    if appointment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Turno no encontrado"
+        )
+
+    if user.id != appointment.user_id and user.role != RoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Turno no encontrado",
+        )
+
+    response: AppointmentRead = AppointmentRead.model_validate(appointment)
+
+    return response
