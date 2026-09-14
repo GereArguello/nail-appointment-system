@@ -14,6 +14,7 @@ class BusinessSettingsUpdate(SQLModel):
         default=None,
         ge=0,
     )
+    deposit_payment_expiration_hours: int | None = Field(default=None, ge=0)
 
 
 class BusinessSettingsRead(BusinessSettingsBase):

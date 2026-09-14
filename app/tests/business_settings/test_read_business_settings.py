@@ -21,7 +21,9 @@ def test_should_create_default_business_settings(
 
     assert business_settings is not None
     assert business_settings.id == 1
-    assert business_settings.appointment_end_tolerance_minutes == 0
+    assert business_settings.appointment_end_tolerance_minutes == 10
+    assert business_settings.appointment_start_tolerance_minutes == 10
+    assert business_settings.deposit_payment_expiration_hours == 24
 
 
 def test_should_read_existing_business_settings(

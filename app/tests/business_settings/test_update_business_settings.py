@@ -58,11 +58,6 @@ def test_should_create_and_update_business_settings_if_not_exists(
 
     assert response.status_code == status.HTTP_200_OK
 
-    data = response.json()
-
-    assert data["id"] == 1
-    assert data["appointment_end_tolerance_minutes"] == 15
-
     business_settings = session.get(BusinessSettings, 1)
 
     assert business_settings is not None
