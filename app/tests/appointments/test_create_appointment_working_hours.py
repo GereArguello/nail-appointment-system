@@ -1,25 +1,19 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from fastapi import status
-from fastapi.testclient import TestClient
+from fastapi import Response, status
 
-from app.business_settings.schemas import BusinessSettingsRead
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
 from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_fail_if_appointment_starts_before_working_hours(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
     user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service()
+    service, working_hour, _ = appointment_creation_setup
 
     starts_at = datetime.combine(
         working_hour.date,
@@ -28,14 +22,10 @@ def test_should_fail_if_appointment_starts_before_working_hours(
 
     _, token = user_with_login
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT
@@ -46,35 +36,25 @@ def test_should_fail_if_appointment_starts_before_working_hours(
 
 
 def test_should_fail_if_appointment_ends_after_working_hours(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
     user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service()
+    service, working_hour, _ = appointment_creation_setup
 
-    starts_at = (
-        datetime.combine(
-            working_hour.date,
-            working_hour.end_time,
-        )
-        - timedelta(minutes=service.duration_minutes)
-        + timedelta(hours=1)
-    )
+    latest_valid_start = datetime.combine(
+        working_hour.date,
+        working_hour.end_time,
+    ) - timedelta(minutes=service.duration_minutes)
+
+    starts_at = latest_valid_start + timedelta(minutes=1)
 
     _, token = user_with_login
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT

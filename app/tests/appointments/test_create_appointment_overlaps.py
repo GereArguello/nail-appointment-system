@@ -1,42 +1,24 @@
 from collections.abc import Callable
 from datetime import datetime, timedelta
 
-from fastapi import status
-from fastapi.testclient import TestClient
+from fastapi import Response, status
 
 from app.appointments.schemas import AppointmentRead
-from app.business_settings.schemas import BusinessSettingsRead
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
 from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_fail_if_appointment_overlaps_existing_appointment(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
-    create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service()
+    service, appointment, token = appointment_overlap_setup
 
-    starts_at = datetime.combine(working_hour.date, working_hour.start_time)
-
-    user, token = user_with_login
-
-    create_appointment(user_id=user.id, service=service, starts_at=starts_at)
-
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": starts_at.isoformat(),
-            "description": "  Diseño francés con detalles dorados  ",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=appointment.starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT
@@ -44,40 +26,17 @@ def test_should_fail_if_appointment_overlaps_existing_appointment(
 
 
 def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from_left(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
-    create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service(duration_minutes=60)
+    service, appointment, token = appointment_overlap_setup
 
-    existing_starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    ) + timedelta(hours=1)
+    new_starts_at = appointment.starts_at - timedelta(minutes=30)
 
-    user, token = user_with_login
-
-    create_appointment(
-        user_id=user.id,
-        service=service,
-        starts_at=existing_starts_at,
-    )
-
-    new_starts_at = existing_starts_at - timedelta(minutes=30)
-
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": new_starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=new_starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT
@@ -85,40 +44,17 @@ def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from
 
 
 def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from_right(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
-    create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service(duration_minutes=60)
+    service, appointment, token = appointment_overlap_setup
 
-    existing_starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    ) + timedelta(hours=1)
+    new_starts_at = appointment.starts_at + timedelta(minutes=30)
 
-    user, token = user_with_login
-
-    create_appointment(
-        user_id=user.id,
-        service=service,
-        starts_at=existing_starts_at,
-    )
-
-    new_starts_at = existing_starts_at + timedelta(minutes=30)
-
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": new_starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=new_starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT
@@ -126,15 +62,12 @@ def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from
 
 
 def test_should_fail_if_appointment_is_inside_existing_appointment(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
+    appointment_overlap_context: tuple[WorkingHourRead, UserRead, str],
     create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
+    working_hour, user, token = appointment_overlap_context
 
     existing_service = create_service(
         name="Servicio largo",
@@ -150,8 +83,6 @@ def test_should_fail_if_appointment_is_inside_existing_appointment(
         working_hour.date,
         working_hour.start_time,
     ) + timedelta(hours=1)
-
-    user, token = user_with_login
 
     create_appointment(
         user_id=user.id,
@@ -161,14 +92,10 @@ def test_should_fail_if_appointment_is_inside_existing_appointment(
 
     new_starts_at = existing_starts_at + timedelta(minutes=30)
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": new_service.id,
-            "starts_at": new_starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=new_service.id,
+        starts_at=new_starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT
@@ -176,32 +103,27 @@ def test_should_fail_if_appointment_is_inside_existing_appointment(
 
 
 def test_should_fail_if_appointment_contains_existing_appointment(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
+    appointment_overlap_context: tuple[WorkingHourRead, UserRead, str],
     create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
+    working_hour, user, token = appointment_overlap_context
 
     existing_service = create_service(
-        name="Servicio largo",
-        duration_minutes=120,
+        name="Servicio corto",
+        duration_minutes=30,
     )
 
     new_service = create_service(
-        name="Servicio corto",
-        duration_minutes=30,
+        name="Servicio largo",
+        duration_minutes=120,
     )
 
     existing_starts_at = datetime.combine(
         working_hour.date,
         working_hour.start_time,
     ) + timedelta(hours=2)
-
-    user, token = user_with_login
 
     create_appointment(
         user_id=user.id,
@@ -211,14 +133,10 @@ def test_should_fail_if_appointment_contains_existing_appointment(
 
     new_starts_at = existing_starts_at - timedelta(minutes=30)
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": new_service.id,
-            "starts_at": new_starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=new_service.id,
+        starts_at=new_starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_409_CONFLICT
@@ -226,27 +144,15 @@ def test_should_fail_if_appointment_contains_existing_appointment(
 
 
 def test_should_allow_appointment_ending_when_existing_appointment_starts(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
+    adjacent_appointment_setup: Callable[
+        ..., tuple[ServiceRead, datetime, UserRead, str]
+    ],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service(
-        duration_minutes=60,
-        buffer_before_minutes=0,
-        buffer_after_minutes=0,
+    service, existing_starts_at, user, token = adjacent_appointment_setup(
+        start_offset_hours=2
     )
-
-    existing_starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    ) + timedelta(hours=2)
-
-    user, token = user_with_login
 
     create_appointment(
         user_id=user.id,
@@ -256,41 +162,25 @@ def test_should_allow_appointment_ending_when_existing_appointment_starts(
 
     new_starts_at = existing_starts_at - timedelta(minutes=service.duration_minutes)
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": new_starts_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=new_starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_201_CREATED
 
 
 def test_should_allow_appointment_starting_when_existing_appointment_ends(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
-    user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
+    adjacent_appointment_setup: Callable[
+        ..., tuple[ServiceRead, datetime, UserRead, str]
+    ],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service(
-        duration_minutes=60,
-        buffer_before_minutes=0,
-        buffer_after_minutes=0,
+    service, existing_starts_at, user, token = adjacent_appointment_setup(
+        start_offset_hours=1
     )
-
-    existing_starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    ) + timedelta(hours=1)
-
-    user, token = user_with_login
 
     existing_appointment = create_appointment(
         user_id=user.id,
@@ -298,14 +188,10 @@ def test_should_allow_appointment_starting_when_existing_appointment_ends(
         starts_at=existing_starts_at,
     )
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": existing_appointment.ends_at.isoformat(),
-            "description": "Diseño francés con detalles dorados",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=existing_appointment.ends_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_201_CREATED

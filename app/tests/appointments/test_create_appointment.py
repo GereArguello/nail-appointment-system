@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 
-from fastapi import status
+from fastapi import Response, status
 from fastapi.testclient import TestClient
 
 from app.business_settings.schemas import BusinessSettingsRead
@@ -13,28 +13,18 @@ from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_create_appointment(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
     user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service()
-
-    starts_at = datetime.combine(working_hour.date, working_hour.start_time)
+    service, _, starts_at = appointment_creation_setup
 
     user, token = user_with_login
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": starts_at.isoformat(),
-            "description": "  Diseño francés con detalles dorados  ",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_201_CREATED
@@ -44,11 +34,13 @@ def test_should_create_appointment(
     assert data["user_id"] == user.id
     assert data["service_id"] == service.id
 
-    assert data["starts_at"] == starts_at.isoformat()
-    assert (
-        data["ends_at"]
-        == (starts_at + timedelta(minutes=service.duration_minutes)).isoformat()
-    )
+    response_starts_at = as_utc(datetime.fromisoformat(data["starts_at"]))
+    response_ends_at = as_utc(datetime.fromisoformat(data["ends_at"]))
+
+    expected_ends_at = starts_at + timedelta(minutes=service.duration_minutes)
+
+    assert response_starts_at == as_utc(starts_at)
+    assert response_ends_at == as_utc(expected_ends_at)
 
     assert data["status"] == AppointmentStatusEnum.PENDING_CONFIRMATION.value
 
@@ -66,29 +58,18 @@ def test_should_create_appointment(
 
 
 def test_should_fail_if_service_does_not_exist(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
     user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-
-    starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    )
+    _, _, starts_at = appointment_creation_setup
 
     _, token = user_with_login
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": 999999,
-            "starts_at": starts_at.isoformat(),
-            "description": "Diseño francés",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=99999,
+        starts_at=starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
@@ -97,18 +78,9 @@ def test_should_fail_if_service_does_not_exist(
 
 def test_should_fail_without_authentication(
     client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-    service = create_service()
-
-    starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    )
+    service, _, starts_at = appointment_creation_setup
 
     response = client.post(
         "/appointments/",
@@ -123,10 +95,10 @@ def test_should_fail_without_authentication(
 
 
 def test_should_fail_if_starts_at_is_in_the_past(
-    client: TestClient,
     create_business_settings: Callable[..., BusinessSettingsRead],
     create_service: Callable[..., ServiceRead],
     user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
     create_business_settings()
     service = create_service()
@@ -135,14 +107,10 @@ def test_should_fail_if_starts_at_is_in_the_past(
 
     _, token = user_with_login
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": starts_at.isoformat(),
-            "description": "Diseño francés",
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id,
+        starts_at=starts_at,
+        token=token,
     )
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -153,34 +121,16 @@ def test_should_fail_if_starts_at_is_in_the_past(
 
 
 def test_should_allow_appointment_without_description(
-    client: TestClient,
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_service: Callable[..., ServiceRead],
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
     user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
 ) -> None:
-    create_business_settings()
-    working_hour = create_working_hours()
-
-    service = create_service(
-        buffer_before_minutes=0,
-        buffer_after_minutes=0,
-    )
-
-    starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    )
+    service, _, starts_at = appointment_creation_setup
 
     _, token = user_with_login
 
-    response = client.post(
-        "/appointments/",
-        json={
-            "service_id": service.id,
-            "starts_at": starts_at.isoformat(),
-        },
-        headers={"Authorization": f"Bearer {token}"},
+    response = post_appointment(
+        service_id=service.id, starts_at=starts_at, token=token, description=None
     )
 
     assert response.status_code == status.HTTP_201_CREATED
