@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlmodel import select
 
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentCreate, AppointmentRead
@@ -87,11 +88,19 @@ def create_appointment(
     "/{appointment_id}", response_model=AppointmentRead, status_code=status.HTTP_200_OK
 )
 def read_appointment(
-    appointment_id: int, session: SessionDep, user: User = Depends(get_current_user)
+    appointment_id: int,
+    session: SessionDep,
+    current_user: User = Depends(get_current_user),
 ) -> AppointmentRead:
+    """Obtiene una cita por su identificador.
+
+    Permite acceder a la cita al usuario propietario o a un
+    administrador. Si la cita no existe o el usuario no tiene
+    permiso para verla, devuelve un error 404.
+    """
     appointment = get_appointment_or_404(appointment_id, session)
 
-    if user.id != appointment.user_id and user.role != RoleEnum.ADMIN:
+    if current_user.id != appointment.user_id and current_user.role != RoleEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Turno no encontrado",
@@ -108,8 +117,16 @@ def read_appointment(
     status_code=status.HTTP_200_OK,
 )
 def confirm_appointment(
-    appointment_id: int, session: SessionDep, user: User = Depends(get_current_admin)
+    appointment_id: int,
+    session: SessionDep,
+    current_user: User = Depends(get_current_admin),
 ) -> AppointmentRead:
+    """Confirma una cita pendiente de confirmación.
+
+    Solo los administradores pueden realizar esta acción.
+    La cita debe encontrarse en estado PENDING_CONFIRMATION;
+    cualquier otro estado genera un conflicto.
+    """
     appointment = get_appointment_or_404(appointment_id, session)
 
     if appointment.status != AppointmentStatusEnum.PENDING_CONFIRMATION:
@@ -126,3 +143,39 @@ def confirm_appointment(
     response: AppointmentRead = AppointmentRead.model_validate(appointment)
 
     return response
+
+
+@router.get("/", response_model=list[AppointmentRead], status_code=status.HTTP_200_OK)
+def list_appointments(
+    session: SessionDep,
+    current_user: User = Depends(get_current_user),
+    from_date: datetime | None = None,
+    to_date: datetime | None = None,
+) -> list[AppointmentRead]:
+    """Lista las citas accesibles para el usuario autenticado.
+
+    Los administradores pueden consultar todas las citas, mientras
+    que los usuarios comunes solo pueden consultar las propias.
+
+    Permite filtrar opcionalmente por fecha de inicio mediante
+    from_date y to_date. Si ambas fechas se especifican, la fecha
+    final no puede ser anterior a la inicial.
+    """
+    if current_user.role == RoleEnum.ADMIN:
+        statement = select(Appointment)
+    else:
+        statement = select(Appointment).where(Appointment.user_id == current_user.id)
+
+    if from_date is not None and to_date is not None and to_date < from_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La fecha final no puede ser anterior a la inicial",
+        )
+
+    if from_date is not None:
+        statement = statement.where(Appointment.starts_at >= from_date)
+
+    if to_date is not None:
+        statement = statement.where(Appointment.starts_at <= to_date)
+
+    return list(session.exec(statement).all())

@@ -94,6 +94,15 @@ def user_with_login(
 
 
 @pytest.fixture
+def another_user(
+    create_user: Callable[..., UserRead],
+) -> UserRead:
+    return create_user(
+        email="another_user@example.com",
+    )
+
+
+@pytest.fixture
 def admin_with_login(
     client: TestClient, session: Session, create_user: Callable[..., UserRead]
 ) -> tuple[UserRead, str]:

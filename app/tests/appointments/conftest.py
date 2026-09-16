@@ -38,6 +38,25 @@ def appointment(
 
 
 @pytest.fixture
+def appointments(
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    create_appointment: Callable[..., AppointmentRead],
+    user_with_login: tuple[UserRead, str],
+) -> list[AppointmentRead]:
+    service, _, starts_at = appointment_creation_setup
+    user, _ = user_with_login
+
+    return [
+        create_appointment(
+            user_id=user.id,
+            service=service,
+            starts_at=starts_at + timedelta(days=i),
+        )
+        for i in range(5)
+    ]
+
+
+@pytest.fixture
 def appointment_creation_setup(
     create_business_settings: Callable[..., BusinessSettingsRead],
     create_service: Callable[..., ServiceRead],
