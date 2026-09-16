@@ -235,21 +235,27 @@ def create_appointment(
         starts_at: datetime,
         **overrides: Any,
     ) -> AppointmentRead:
-        appointment = Appointment(
-            user_id=user_id,
-            service_id=service.id,
-            starts_at=starts_at,
-            ends_at=starts_at + timedelta(minutes=service.duration_minutes),
-            status=AppointmentStatusEnum.CONFIRMED,
-            agreed_price=service.price,
-            agreed_deposit=service.deposit_amount,
-            **overrides,
-        )
+        data = {
+            "user_id": user_id,
+            "service_id": service.id,
+            "starts_at": starts_at,
+            "ends_at": starts_at + timedelta(minutes=service.duration_minutes),
+            "status": AppointmentStatusEnum.PENDING_CONFIRMATION,
+            "agreed_price": service.price,
+            "agreed_deposit": service.deposit_amount,
+        }
+
+        data.update(overrides)
+
+        appointment = Appointment(**data)
 
         session.add(appointment)
         session.commit()
         session.refresh(appointment)
 
-        return cast(AppointmentRead, AppointmentRead.model_validate(appointment))
+        return cast(
+            AppointmentRead,
+            AppointmentRead.model_validate(appointment),
+        )
 
     return _create_appointment

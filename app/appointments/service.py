@@ -48,6 +48,21 @@ def get_business_settings_or_409(
     return cast(BusinessSettings, business_settings)
 
 
+def get_appointment_or_404(appointment_id: int, session: SessionDep) -> Appointment:
+    """Obtiene la cita asociada por id.
+
+    Lanza un error 404 si la cita solicitada no existe.
+    """
+    appointment = session.get(Appointment, appointment_id)
+
+    if not appointment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Cita no encontrada"
+        )
+
+    return cast(Appointment, appointment)
+
+
 def calculate_appointment_time_range(
     appointment: AppointmentCreate, service: Service
 ) -> tuple[datetime, datetime]:

@@ -53,6 +53,11 @@ testpaths = ["app/tests"]
 python_files = ["test_*.py"]
 pythonpath = ["."]
 
+[tool.coverage.run]
+omit = [
+    "app/tests/*",
+]
+
 [dependency-groups]
 dev = [
     "httpx2>=2.9.1",
