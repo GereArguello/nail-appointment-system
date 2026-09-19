@@ -19,6 +19,7 @@ from app.auth.dependencies import get_current_admin, get_current_user
 from app.core.database import SessionDep
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.users.models import User
+from app.utils import as_utc, utc_now
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -227,6 +228,44 @@ def cancel_appointment(
         if user.role == RoleEnum.ADMIN
         else AppointmentStatusEnum.CANCELLED_BY_CLIENT
     )
+
+    session.commit()
+    session.refresh(appointment)
+
+    response: AppointmentRead = AppointmentRead.model_validate(appointment)
+
+    return response
+
+
+@router.patch(
+    "/{appointment_id}/complete",
+    response_model=AppointmentRead,
+    status_code=status.HTTP_200_OK,
+)
+def complete_appointment(
+    appointment_id: int, session: SessionDep, user: User = Depends(get_current_admin)
+) -> AppointmentRead:
+    """Marca una cita confirmada como completada.
+
+    Solo los administradores pueden completar citas.
+    La cita debe estar en estado confirmado y haber alcanzado
+    su hora de finalización.
+    """
+    appointment = get_appointment_or_404(appointment_id, session)
+
+    if appointment.status != AppointmentStatusEnum.CONFIRMED:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La cita no puede ser completada en su estado actual",
+        )
+
+    if utc_now() < as_utc(appointment.ends_at):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La cita no puede completarse antes de su finalización",
+        )
+
+    appointment.status = AppointmentStatusEnum.COMPLETED
 
     session.commit()
     session.refresh(appointment)
