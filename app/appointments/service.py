@@ -10,8 +10,10 @@ from app.business_settings.models import BusinessSettings
 from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc
+from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.models import Service
-from app.utils import utc_now
+from app.users.models import User
+from app.utils import as_utc, utc_now
 from app.working_hours.models import WorkingHour
 
 
@@ -190,3 +192,33 @@ def resolve_appointment_payment_terms(
         )
 
     return agreed_price, agreed_deposit, payment_expires_at
+
+
+def validate_cancellation_deadline(
+    session: SessionDep,
+    appointment: Appointment,
+    user: User,
+) -> None:
+    """Valida que una cita confirmada aún pueda ser cancelada.
+
+    Los administradores no están sujetos al límite de cancelación.
+    Para usuarios comunes, el límite se calcula según la configuración
+    del negocio.
+    """
+    business_settings = get_business_settings_or_409(session)
+
+    starts_at = as_utc(appointment.starts_at)
+
+    cancellation_deadline = starts_at - timedelta(
+        hours=business_settings.appointment_cancellation_limit_hours
+    )
+
+    if (
+        user.role != RoleEnum.ADMIN
+        and appointment.status == AppointmentStatusEnum.CONFIRMED
+        and utc_now() > cancellation_deadline
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La cita ya no se puede cancelar",
+        )

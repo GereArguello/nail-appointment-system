@@ -103,6 +103,25 @@ def another_user(
 
 
 @pytest.fixture
+def another_user_with_login(
+    client: TestClient, another_user: UserRead
+) -> tuple[UserRead, str]:
+    response = client.post(
+        "/auth/login",
+        data={
+            "username": another_user.email,
+            "password": "A12345678",
+        },
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+
+    data = response.json()
+
+    return another_user, data["access_token"]
+
+
+@pytest.fixture
 def admin_with_login(
     client: TestClient, session: Session, create_user: Callable[..., UserRead]
 ) -> tuple[UserRead, str]:

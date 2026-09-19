@@ -10,6 +10,7 @@ from app.appointments.service import (
     get_appointment_or_404,
     get_service_or_404,
     resolve_appointment_payment_terms,
+    validate_cancellation_deadline,
     validate_no_appointment_overlap,
     validate_no_calendar_block_overlap,
     validate_within_working_hours,
@@ -179,3 +180,49 @@ def list_appointments(
         statement = statement.where(Appointment.starts_at <= to_date)
 
     return list(session.exec(statement).all())
+
+
+@router.patch(
+    "/{appointment_id}/cancel",
+    response_model=AppointmentRead,
+    status_code=status.HTTP_200_OK,
+)
+def cancel_appointment(
+    appointment_id: int,
+    session: SessionDep,
+    user: User = Depends(get_current_user),
+) -> AppointmentRead:
+    appointment = get_appointment_or_404(appointment_id, session)
+
+    if appointment.user_id != user.id and user.role != RoleEnum.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cita no encontrada",
+        )
+
+    cancellable_statuses = {
+        AppointmentStatusEnum.PENDING_CONFIRMATION,
+        AppointmentStatusEnum.PENDING_PAYMENT,
+        AppointmentStatusEnum.CONFIRMED,
+    }
+
+    if appointment.status not in cancellable_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La cita no puede ser cancelada en su estado actual",
+        )
+
+    validate_cancellation_deadline(session, appointment, user)
+
+    appointment.status = (
+        AppointmentStatusEnum.CANCELLED_BY_ADMIN
+        if user.role == RoleEnum.ADMIN
+        else AppointmentStatusEnum.CANCELLED_BY_CLIENT
+    )
+
+    session.commit()
+    session.refresh(appointment)
+
+    response: AppointmentRead = AppointmentRead.model_validate(appointment)
+
+    return response
