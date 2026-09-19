@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import cast
 
 from fastapi import HTTPException, status
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentCreate
@@ -150,10 +150,20 @@ def validate_no_appointment_overlap(
     asociado a cada cita existente."""
     day_start, day_end = date_range_as_datetime_utc(start_time.date(), end_time.date())
 
+    blocking_statuses = {
+        AppointmentStatusEnum.CONFIRMED,
+        AppointmentStatusEnum.PENDING_CONFIRMATION,
+        AppointmentStatusEnum.PENDING_PAYMENT,
+    }
+
     query = (
         select(Appointment, Service)
         .join(Service, Appointment.service_id == Service.id)
-        .where((Appointment.starts_at >= day_start) & (Appointment.ends_at <= day_end))
+        .where(
+            Appointment.starts_at >= day_start,
+            Appointment.ends_at <= day_end,
+            col(Appointment.status).in_(blocking_statuses),
+        )
     )
 
     results = session.exec(query).all()
