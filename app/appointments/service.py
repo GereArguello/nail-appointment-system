@@ -17,21 +17,6 @@ from app.utils import as_utc, utc_now
 from app.working_hours.models import WorkingHour
 
 
-def get_service_or_404(appointment: AppointmentCreate, session: SessionDep) -> Service:
-    """Obtiene el servicio asociado a una cita.
-
-    Lanza un error 404 si el servicio solicitado no existe.
-    """
-    service = session.get(Service, appointment.service_id)
-
-    if not service:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Servicio no encontrado"
-        )
-
-    return cast(Service, service)
-
-
 def get_business_settings_or_409(
     session: SessionDep,
 ) -> BusinessSettings:

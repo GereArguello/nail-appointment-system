@@ -3,9 +3,11 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Response, status
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from app.business_settings.schemas import BusinessSettingsRead
-from app.core.enums import AppointmentStatusEnum
+from app.core.enums import AppointmentStatusEnum, StatusEnum
+from app.services.models import Service
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
 from app.utils import as_utc
@@ -68,6 +70,33 @@ def test_should_fail_if_service_does_not_exist(
 
     response = post_appointment(
         service_id=99999,
+        starts_at=starts_at,
+        token=token,
+    )
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Servicio no encontrado"
+
+
+def test_should_fail_if_service_is_inactive(
+    session: Session,
+    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    user_with_login: tuple[UserRead, str],
+    post_appointment: Callable[..., Response],
+) -> None:
+    service, _, starts_at = appointment_creation_setup
+
+    db_service = session.get(Service, service.id)
+
+    assert db_service is not None
+
+    db_service.status = StatusEnum.INACTIVE
+    session.commit()
+
+    _, token = user_with_login
+
+    response = post_appointment(
+        service_id=service.id,
         starts_at=starts_at,
         token=token,
     )

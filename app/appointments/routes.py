@@ -8,7 +8,6 @@ from app.appointments.schemas import AppointmentCreate, AppointmentRead
 from app.appointments.service import (
     calculate_appointment_time_range,
     get_appointment_or_404,
-    get_service_or_404,
     resolve_appointment_payment_terms,
     validate_cancellation_deadline,
     validate_no_appointment_overlap,
@@ -18,6 +17,7 @@ from app.appointments.service import (
 from app.auth.dependencies import get_current_admin, get_current_user
 from app.core.database import SessionDep
 from app.core.enums import AppointmentStatusEnum, RoleEnum
+from app.services.service import get_service_or_404
 from app.users.models import User
 from app.utils import as_utc, utc_now
 
@@ -41,7 +41,7 @@ def create_appointment(
     pago cuando corresponde y asigna el estado inicial de la cita.
     """
 
-    service = get_service_or_404(appointment_data, session)
+    service = get_service_or_404(appointment_data.service_id, session)
 
     start_time, end_time = calculate_appointment_time_range(appointment_data, service)
 
