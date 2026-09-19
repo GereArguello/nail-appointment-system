@@ -60,6 +60,7 @@ def create_business_settings_data(**overrides: Any) -> dict[str, Any]:
     data = {
         "appointment_start_tolerance_minutes": 10,
         "appointment_end_tolerance_minutes": 10,
+        "appointment_cancellation_limit_hours": 8,
         "deposit_payment_expiration_hours": 24,
     }
 

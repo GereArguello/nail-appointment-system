@@ -56,6 +56,7 @@ def test_should_return_404_if_user_is_not_owner_or_admin(
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Cita no encontrada"
 
 
 def test_should_return_404_if_appointment_not_exists(
@@ -70,4 +71,4 @@ def test_should_return_404_if_appointment_not_exists(
     )
 
     assert response.status_code == status.HTTP_404_NOT_FOUND
-    assert response.json()["detail"] == "Turno no encontrado"
+    assert response.json()["detail"] == "Cita no encontrada"

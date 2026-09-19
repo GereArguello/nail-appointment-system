@@ -104,7 +104,7 @@ def read_appointment(
     if current_user.id != appointment.user_id and current_user.role != RoleEnum.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Turno no encontrado",
+            detail="Cita no encontrada",
         )
 
     response: AppointmentRead = AppointmentRead.model_validate(appointment)
@@ -192,6 +192,14 @@ def cancel_appointment(
     session: SessionDep,
     user: User = Depends(get_current_user),
 ) -> AppointmentRead:
+    """Cancela una cita existente.
+
+    El cliente solo puede cancelar sus propias citas y únicamente si se
+    encuentran en un estado cancelable y dentro del plazo permitido.
+
+    Los administradores pueden cancelar cualquier cita cancelable y no están
+    sujetos al límite de tiempo de cancelación.
+    """
     appointment = get_appointment_or_404(appointment_id, session)
 
     if appointment.user_id != user.id and user.role != RoleEnum.ADMIN:
