@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
@@ -7,7 +7,13 @@ from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentCreate, AppointmentRead
 from app.appointments.service import (
     calculate_appointment_time_range,
+    calculate_first_and_last_possible_start,
     get_appointment_or_404,
+    get_appointments_by_date,
+    get_calendar_blocks_by_date,
+    get_working_hour_by_date,
+    has_appointment_overlap,
+    has_calendar_block_overlap,
     resolve_appointment_payment_terms,
     validate_cancellation_deadline,
     validate_no_appointment_overlap,
@@ -43,7 +49,9 @@ def create_appointment(
 
     service = get_service_or_404(appointment_data.service_id, session)
 
-    start_time, end_time = calculate_appointment_time_range(appointment_data, service)
+    start_time, end_time = calculate_appointment_time_range(
+        appointment_data.starts_at, service
+    )
 
     validate_within_working_hours(start_time, end_time, session)
 
@@ -84,6 +92,50 @@ def create_appointment(
     appointment_read: AppointmentRead = AppointmentRead.model_validate(appointment)
 
     return appointment_read
+
+
+@router.get("/availability")
+def get_availability(
+    date: date, service_id: int, session: SessionDep
+) -> list[datetime]:
+    """Obtiene los horarios disponibles para reservar un servicio en una fecha.
+
+    Genera posibles inicios de cita en intervalos de 15 minutos dentro del
+    horario laboral disponible. Para cada candidato se considera la duración del
+    servicio, sus buffers anterior y posterior, las tolerancias del negocio,
+    los bloqueos de calendario y las citas existentes que ocupan disponibilidad.
+
+    Devuelve únicamente las horas visibles de inicio de los turnos disponibles.
+
+    Lanza 404 si la fecha no tiene horario laboral configurado o si el servicio
+    no existe o no está disponible.
+
+    Lanza 409 si el servicio no puede entrar dentro del rango laboral disponible."""
+    working_hour = get_working_hour_by_date(session, date)
+    calendar_blocks = get_calendar_blocks_by_date(session, date)
+    appointments = get_appointments_by_date(session, date)
+    service = get_service_or_404(service_id, session)
+
+    first_possible_starts_at, last_possible_starts_at = (
+        calculate_first_and_last_possible_start(session, working_hour, service)
+    )
+
+    slots: list[datetime] = []
+
+    appoint = first_possible_starts_at
+    step = timedelta(minutes=15)
+
+    while appoint <= last_possible_starts_at:
+        start_time, end_time = calculate_appointment_time_range(appoint, service)
+
+        if not has_appointment_overlap(
+            start_time, end_time, appointments
+        ) and not has_calendar_block_overlap(start_time, end_time, calendar_blocks):
+            slots.append(appoint)
+
+        appoint += step
+
+    return slots
 
 
 @router.get(
