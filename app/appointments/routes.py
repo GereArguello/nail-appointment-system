@@ -10,6 +10,7 @@ from app.appointments.service import (
     calculate_first_and_last_possible_start,
     get_appointment_or_404,
     get_appointments_by_date,
+    get_business_settings_or_409,
     get_calendar_blocks_by_date,
     get_working_hour_by_date,
     has_appointment_overlap,
@@ -115,6 +116,7 @@ def get_availability(
     calendar_blocks = get_calendar_blocks_by_date(session, date)
     appointments = get_appointments_by_date(session, date)
     service = get_service_or_404(service_id, session)
+    business_settings = get_business_settings_or_409(session)
 
     first_possible_starts_at, last_possible_starts_at = (
         calculate_first_and_last_possible_start(session, working_hour, service)
@@ -123,7 +125,7 @@ def get_availability(
     slots: list[datetime] = []
 
     appoint = first_possible_starts_at
-    step = timedelta(minutes=15)
+    step = timedelta(minutes=business_settings.slot_interval_minutes)
 
     while appoint <= last_possible_starts_at:
         start_time, end_time = calculate_appointment_time_range(appoint, service)
