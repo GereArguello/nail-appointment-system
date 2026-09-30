@@ -101,10 +101,12 @@ def get_availability(
 ) -> list[datetime]:
     """Obtiene los horarios disponibles para reservar un servicio en una fecha.
 
-    Genera posibles inicios de cita en intervalos de 15 minutos dentro del
-    horario laboral disponible. Para cada candidato se considera la duración del
-    servicio, sus buffers anterior y posterior, las tolerancias del negocio,
-    los bloqueos de calendario y las citas existentes que ocupan disponibilidad.
+    Genera posibles inicios de cita según el intervalo de slots configurado en
+    BusinessSettings, dentro del horario laboral disponible. Para cada candidato
+    se considera la duración del servicio, sus buffers anterior y posterior,
+    las tolerancias del negocio, los bloqueos de calendario y las citas existentes
+    que ocupan disponibilidad.
+
 
     Devuelve únicamente las horas visibles de inicio de los turnos disponibles.
 

@@ -2,10 +2,13 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.core.enums import TimezoneEnum
 from app.utils import utc_now
 
 
 class BusinessSettingsBase(SQLModel):
+    timezone: TimezoneEnum
+
     appointment_start_tolerance_minutes: int = Field(default=10, ge=0)
     appointment_end_tolerance_minutes: int = Field(default=10, ge=0)
     appointment_cancellation_limit_hours: int = Field(default=8, ge=0)

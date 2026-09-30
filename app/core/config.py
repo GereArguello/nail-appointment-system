@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.enums import TimezoneEnum
+
 
 class Settings(BaseSettings):
     SECRET_KEY: str
@@ -10,6 +12,8 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+
+    BUSINESS_TIMEZONE: TimezoneEnum = TimezoneEnum.BUENOS_AIRES
 
     model_config = SettingsConfigDict(
         env_file=".env",

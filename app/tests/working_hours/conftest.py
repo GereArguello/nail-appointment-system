@@ -1,11 +1,12 @@
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import date
 from typing import cast
 
 import pytest
 from sqlmodel import Session
 
-from app.utils import utc_now
+from app.business_settings.schemas import BusinessSettingsRead
+from app.tests.utils import get_local_date
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 
@@ -13,12 +14,18 @@ from app.working_hours.schemas import WorkingHourRead
 @pytest.fixture
 def create_working_hours_list(
     create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> Callable[[int], list[WorkingHourRead]]:
 
     def _create_working_hours_list(amount: int) -> list[WorkingHourRead]:
+        business_settings = create_business_settings()
+
         return [
             create_working_hours(
-                date=(utc_now() + timedelta(days=i + 1)).date().isoformat()
+                date=get_local_date(
+                    days_offset=i + 1,
+                    timezone=business_settings.timezone,
+                )
             )
             for i in range(amount)
         ]
@@ -30,15 +37,23 @@ def create_working_hours_list(
 def create_past_working_hours(
     session: Session,
     create_working_hours: Callable[..., WorkingHourRead],
-) -> Callable[..., WorkingHour]:
+    create_business_settings: Callable[..., BusinessSettingsRead],
+) -> Callable[[], WorkingHourRead]:
+
     def _create_past_working_hours() -> WorkingHourRead:
+        business_settings = create_business_settings()
+
         created = create_working_hours()
 
         working_hour = session.get(WorkingHour, created.id)
-
         assert working_hour is not None
 
-        working_hour.date = (utc_now() - timedelta(days=1)).date()
+        working_hour.date = date.fromisoformat(
+            get_local_date(
+                days_offset=-1,
+                timezone=business_settings.timezone,
+            )
+        )
 
         session.commit()
         session.refresh(working_hour)

@@ -3,14 +3,18 @@ from collections.abc import Callable
 from fastapi import status
 from fastapi.testclient import TestClient
 
+from app.business_settings.schemas import BusinessSettingsRead
 from app.users.schemas import UserRead
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_read_working_hour_by_id(
-    client: TestClient, create_working_hours: Callable[..., WorkingHourRead]
+    client: TestClient,
+    create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     working_hour = create_working_hours()
 
     response = client.get(f"/working-hours/{working_hour.id}")
@@ -25,8 +29,9 @@ def test_should_read_working_hour_by_id(
 
 
 def test_should_return_not_found_for_nonexistent_working_hour_id(
-    client: TestClient,
+    client: TestClient, create_business_settings: Callable[..., BusinessSettingsRead]
 ) -> None:
+    create_business_settings()
     response = client.get("/working-hours/999999")
 
     assert response.status_code == status.HTTP_404_NOT_FOUND

@@ -1,10 +1,13 @@
 from collections.abc import Callable
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
+import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
+from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.tests.helpers import (
@@ -12,7 +15,7 @@ from app.tests.helpers import (
     make_calendar_block_datetime,
 )
 from app.users.schemas import UserRead
-from app.utils import utc_now
+from app.utils import as_utc
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 
@@ -22,7 +25,9 @@ def test_delete_working_hour_should_return_204(
     session: Session,
     admin_with_login: tuple[UserRead, str],
     create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     _, token = admin_with_login
 
     working_hour = create_working_hours()
@@ -58,7 +63,9 @@ def test_delete_working_hour_should_return_403_when_user_is_not_admin(
     client: TestClient,
     user_with_login: tuple[UserRead, str],
     create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     _, token = user_with_login
 
     working_hour = create_working_hours()
@@ -76,18 +83,35 @@ def test_delete_working_hour_should_return_403_when_working_hour_already_started
     session: Session,
     admin_with_login: tuple[UserRead, str],
     create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    business_settings = create_business_settings()
+
     _, token = admin_with_login
 
     working_hour = create_working_hours()
 
+    now = datetime(
+        2026,
+        10,
+        15,
+        12,
+        0,
+        tzinfo=ZoneInfo(business_settings.timezone.value),
+    )
+
+    monkeypatch.setattr(
+        "app.working_hours.routes.get_now_in_timezone",
+        lambda timezone: now,
+    )
+
     stored_working_hour = session.get(WorkingHour, working_hour.id)
     assert stored_working_hour is not None
 
-    now = utc_now()
-
     stored_working_hour.date = now.date()
     stored_working_hour.start_time = (now - timedelta(hours=1)).time()
+
     stored_working_hour.end_time = (now + timedelta(hours=1)).time()
 
     session.add(stored_working_hour)
@@ -115,7 +139,9 @@ def test_delete_working_hour_should_delete_calendar_blocks_from_same_day(
     admin_with_login: tuple[UserRead, str],
     create_working_hours: Callable[..., WorkingHourRead],
     create_calendar_block: Callable[..., CalendarBlockRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     _, token = admin_with_login
 
     working_hour = create_working_hours()
@@ -124,6 +150,7 @@ def test_delete_working_hour_should_delete_calendar_blocks_from_same_day(
         working_hour_date=working_hour.date,
         starts_at=time(10, 0),
         ends_at=time(11, 0),
+        timezone=business_settings.timezone,
     )
 
     block_1 = create_calendar_block(
@@ -135,6 +162,7 @@ def test_delete_working_hour_should_delete_calendar_blocks_from_same_day(
         working_hour_date=working_hour.date,
         starts_at=time(12, 0),
         ends_at=time(13, 0),
+        timezone=business_settings.timezone,
     )
 
     block_2 = create_calendar_block(
@@ -159,21 +187,38 @@ def test_delete_working_hour_should_not_delete_calendar_blocks_from_other_days(
     session: Session,
     admin_with_login: tuple[UserRead, str],
     create_calendar_block: Callable[..., CalendarBlockRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     _, token = admin_with_login
 
     block_same_day = create_calendar_block(
-        starts_at=make_calendar_block_datetime(days=1, hour=10),
-        ends_at=make_calendar_block_datetime(days=1, hour=11),
+        starts_at=make_calendar_block_datetime(
+            days=1,
+            hour=10,
+            timezone=business_settings.timezone,
+        ),
+        ends_at=make_calendar_block_datetime(
+            days=1,
+            hour=11,
+            timezone=business_settings.timezone,
+        ),
     )
 
     other_block = create_calendar_block(
-        starts_at=make_calendar_block_datetime(days=2, hour=10),
-        ends_at=make_calendar_block_datetime(days=2, hour=11),
+        starts_at=make_calendar_block_datetime(
+            days=2, hour=10, timezone=business_settings.timezone
+        ),
+        ends_at=make_calendar_block_datetime(
+            days=2, hour=11, timezone=business_settings.timezone
+        ),
     )
 
-    first_date = block_same_day.starts_at.date()
-    other_date = other_block.starts_at.date()
+    tz = ZoneInfo(business_settings.timezone.value)
+
+    first_date = as_utc(block_same_day.starts_at).astimezone(tz).date()
+
+    other_date = as_utc(other_block.starts_at).astimezone(tz).date()
 
     working_hour = session.exec(
         select(WorkingHour).where(WorkingHour.date == first_date)

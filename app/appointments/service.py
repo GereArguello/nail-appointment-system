@@ -5,7 +5,7 @@ from fastapi import HTTPException, status
 from sqlmodel import col, select
 
 from app.appointments.models import Appointment
-from app.business_settings.models import BusinessSettings
+from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc
@@ -14,24 +14,6 @@ from app.services.models import Service
 from app.users.models import User
 from app.utils import as_utc, utc_now
 from app.working_hours.models import WorkingHour
-
-
-def get_business_settings_or_409(
-    session: SessionDep,
-) -> BusinessSettings:
-    """Obtiene la configuración actual del negocio.
-    Lanza un error 409 si el negocio aún no fue configurado
-    para recibir citas.
-    """
-    business_settings = session.exec(select(BusinessSettings)).first()
-
-    if business_settings is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El negocio aún no está configurado para recibir citas",
-        )
-
-    return cast(BusinessSettings, business_settings)
 
 
 def get_appointment_or_404(appointment_id: int, session: SessionDep) -> Appointment:
@@ -132,7 +114,11 @@ def validate_no_appointment_overlap(
 
     La comparación contempla los buffers configurados en el servicio
     asociado a cada cita existente."""
-    day_start, day_end = date_range_as_datetime_utc(start_time.date(), end_time.date())
+    business_settings = get_business_settings_or_409(session)
+
+    day_start, day_end = date_range_as_datetime_utc(
+        start_time.date(), end_time.date(), timezone=business_settings.timezone
+    )
 
     blocking_statuses = {
         AppointmentStatusEnum.CONFIRMED,
@@ -248,7 +234,10 @@ def get_calendar_blocks_by_date(
     Incluye cualquier bloqueo que se superponga total o parcialmente
     con el rango correspondiente al día solicitado.
     """
-    day_start, day_end = date_range_as_datetime_utc(target_date, target_date)
+    business_settings = get_business_settings_or_409(session)
+    day_start, day_end = date_range_as_datetime_utc(
+        target_date, target_date, timezone=business_settings.timezone
+    )
 
     calendar_blocks = session.exec(
         select(CalendarBlock).where(
@@ -270,7 +259,10 @@ def get_appointments_by_date(
 
     Solo incluye citas en estados que reservan espacio en la agenda.
     """
-    day_start, day_end = date_range_as_datetime_utc(target_date, target_date)
+    business_settings = get_business_settings_or_409(session)
+    day_start, day_end = date_range_as_datetime_utc(
+        target_date, target_date, timezone=business_settings.timezone
+    )
 
     occupying_statuses = {
         AppointmentStatusEnum.CONFIRMED,

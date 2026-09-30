@@ -5,14 +5,19 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
+from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
 from app.core.enums import RoleEnum
 from app.users.models import User
-from app.utils import utc_now
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourCreate, WorkingHourRead
+from app.working_hours.service import (
+    get_business_now,
+    get_now_in_timezone,
+    validate_working_hour_date,
+)
 
 router = APIRouter(prefix="/working-hours", tags=["working_hours"])
 
@@ -32,6 +37,8 @@ def create_working_hour(
 
     Solo puede existir un horario laboral por fecha.
     """
+    validate_working_hour_date(session, data.date)
+
     working_hours_data = data.model_dump()
     db_working_hours = WorkingHour(**working_hours_data)
 
@@ -68,10 +75,13 @@ def list_working_hours(
     Por defecto, consulta desde hoy hasta 31 días después.
     Solo los administradores pueden consultar fechas pasadas.
     """
+    business_settings = get_business_settings_or_409(session)
+
     start_date, end_date = resolve_date_range(
         current_user=current_user,
         from_date=from_date,
         to_date=to_date,
+        timezone=business_settings.timezone,
     )
 
     statement = (
@@ -102,11 +112,12 @@ def read_working_hour(
     Los usuarios públicos solo pueden consultar fechas actuales o futuras.
     Los administradores también pueden consultar fechas pasadas.
     """
-    today = utc_now().date()
 
     query = select(WorkingHour).where(WorkingHour.id == working_hour_id)
 
     if not current_user or current_user.role != RoleEnum.ADMIN:
+        today = get_business_now(session).date()
+
         query = query.where(WorkingHour.date >= today)
 
     working_hour = session.exec(query).first()
@@ -143,7 +154,9 @@ def delete_working_hour(
             detail="Horario laboral no encontrado",
         )
 
-    now = utc_now()
+    business_settings = get_business_settings_or_409(session)
+
+    now = get_now_in_timezone(business_settings.timezone)
 
     if working_hour.date < now.date() or (
         working_hour.date == now.date() and working_hour.start_time <= now.time()
@@ -154,14 +167,13 @@ def delete_working_hour(
         )
 
     start_datetime, end_datetime = date_range_as_datetime_utc(
-        working_hour.date,
-        working_hour.date,
+        working_hour.date, working_hour.date, business_settings.timezone
     )
 
     blocks = session.exec(
         select(CalendarBlock).where(
-            CalendarBlock.starts_at >= start_datetime,
-            CalendarBlock.starts_at <= end_datetime,
+            CalendarBlock.starts_at < end_datetime,
+            CalendarBlock.ends_at > start_datetime,
         )
     ).all()
 

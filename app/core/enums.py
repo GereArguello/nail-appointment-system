@@ -19,3 +19,8 @@ class AppointmentStatusEnum(StrEnum):
     CANCELLED_BY_CLIENT = "cancelled_by_client"
     CANCELLED_BY_ADMIN = "cancelled_by_admin"
     NO_SHOW = "no_show"
+
+
+class TimezoneEnum(StrEnum):
+    BUENOS_AIRES = "America/Argentina/Buenos_Aires"
+    ACAPULCO = "America/Mexico_City"

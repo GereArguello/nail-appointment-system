@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta
 from typing import Any
 
+from app.core.config import settings
+from app.core.enums import TimezoneEnum
 from app.tests.helpers import make_calendar_block_datetime
 from app.utils import utc_now
 
@@ -43,12 +45,27 @@ def create_working_hours_data(**overrides: Any) -> dict[str, Any]:
     return data
 
 
-def create_calendar_block_data(**overrides: Any) -> dict[str, Any]:
+def create_calendar_block_data(
+    *,
+    timezone: TimezoneEnum = settings.BUSINESS_TIMEZONE,
+    **overrides: Any,
+) -> dict[str, Any]:
 
-    starts_at = make_calendar_block_datetime(days=1, hour=13)
-    ends_at = make_calendar_block_datetime(days=1, hour=15)
+    starts_at = make_calendar_block_datetime(
+        days=1,
+        hour=13,
+        timezone=timezone,
+    )
+    ends_at = make_calendar_block_datetime(
+        days=1,
+        hour=15,
+        timezone=timezone,
+    )
 
-    data = {"starts_at": starts_at, "ends_at": ends_at}
+    data = {
+        "starts_at": starts_at,
+        "ends_at": ends_at,
+    }
 
     data.update(overrides)
 
@@ -56,8 +73,8 @@ def create_calendar_block_data(**overrides: Any) -> dict[str, Any]:
 
 
 def create_business_settings_data(**overrides: Any) -> dict[str, Any]:
-
     data = {
+        "timezone": settings.BUSINESS_TIMEZONE,
         "appointment_start_tolerance_minutes": 10,
         "appointment_end_tolerance_minutes": 10,
         "appointment_cancellation_limit_hours": 8,

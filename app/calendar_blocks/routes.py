@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
+from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockCreate, CalendarBlockRead
 from app.calendar_blocks.service import validate_calendar_block_creation
@@ -63,14 +64,18 @@ def list_calendar_blocks(
     Por defecto, consulta desde hoy hasta 31 días después.
     Solo los administradores pueden consultar fechas pasadas.
     """
+    business_settings = get_business_settings_or_409(session)
 
     start_date, end_date = resolve_date_range(
         current_user=current_user,
         from_date=from_date,
         to_date=to_date,
+        timezone=business_settings.timezone,
     )
 
-    start_datetime, end_datetime = date_range_as_datetime_utc(start_date, end_date)
+    start_datetime, end_datetime = date_range_as_datetime_utc(
+        start_date, end_date, timezone=business_settings.timezone
+    )
 
     query = (
         select(CalendarBlock)

@@ -1,18 +1,20 @@
 from collections.abc import Callable
-from datetime import timedelta
 
 from fastapi import status
 from fastapi.testclient import TestClient
 
+from app.business_settings.schemas import BusinessSettingsRead
+from app.tests.utils import get_local_date
 from app.users.schemas import UserRead
-from app.utils import utc_now
 from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_list_working_hours(
     client: TestClient,
     create_working_hours_list: Callable[[int], list[WorkingHourRead]],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     created = create_working_hours_list(3)
 
     response = client.get("/working-hours/")
@@ -29,11 +31,16 @@ def test_should_not_list_past_working_hours(
     client: TestClient,
     create_past_working_hours: Callable[..., WorkingHourRead],
     create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     create_past_working_hours()
 
     future = create_working_hours(
-        date=(utc_now() + timedelta(days=1)).date().isoformat()
+        date=get_local_date(
+            days_offset=1,
+            timezone=business_settings.timezone,
+        )
     )
 
     response = client.get("/working-hours/")
@@ -47,8 +54,9 @@ def test_should_not_list_past_working_hours(
 
 
 def test_should_return_empty_list_when_no_working_hours_exist(
-    client: TestClient,
+    client: TestClient, create_business_settings: Callable[..., BusinessSettingsRead]
 ) -> None:
+    create_business_settings()
     response = client.get("/working-hours/")
 
     assert response.status_code == status.HTTP_200_OK
@@ -58,10 +66,14 @@ def test_should_return_empty_list_when_no_working_hours_exist(
 def test_should_list_working_hours_ordered_by_date(
     client: TestClient,
     create_working_hours: Callable[..., WorkingHourRead],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    create_working_hours(date=(utc_now() + timedelta(days=3)).date().isoformat())
-    create_working_hours(date=(utc_now() + timedelta(days=1)).date().isoformat())
-    create_working_hours(date=(utc_now() + timedelta(days=2)).date().isoformat())
+    business_settings = create_business_settings()
+    timezone = business_settings.timezone
+
+    create_working_hours(date=get_local_date(days_offset=3, timezone=timezone))
+    create_working_hours(date=get_local_date(days_offset=1, timezone=timezone))
+    create_working_hours(date=get_local_date(days_offset=2, timezone=timezone))
 
     response = client.get("/working-hours/")
 
@@ -75,7 +87,9 @@ def test_should_list_working_hours_ordered_by_date(
 def test_should_filter_working_hours_by_date_range(
     client: TestClient,
     create_working_hours_list: Callable[[int], list[WorkingHourRead]],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     created = create_working_hours_list(5)
 
     response = client.get(
@@ -99,7 +113,9 @@ def test_should_reject_past_working_hours_range_for_non_admin(
     client: TestClient,
     create_past_working_hours: Callable[[], WorkingHourRead],
     user_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     past = create_past_working_hours()
 
     _, token = user_with_login
@@ -108,7 +124,9 @@ def test_should_reject_past_working_hours_range_for_non_admin(
         "/working-hours/",
         params={
             "from_date": past.date,
-            "to_date": utc_now().date(),
+            "to_date": get_local_date(
+                timezone=business_settings.timezone,
+            ),
         },
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -120,7 +138,9 @@ def test_should_list_past_working_hours_as_admin(
     client: TestClient,
     create_past_working_hours: Callable[[], WorkingHourRead],
     admin_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     past = create_past_working_hours()
 
     _, token = admin_with_login
@@ -129,7 +149,9 @@ def test_should_list_past_working_hours_as_admin(
         "/working-hours/",
         params={
             "from_date": past.date,
-            "to_date": utc_now().date(),
+            "to_date": get_local_date(
+                timezone=business_settings.timezone,
+            ),
         },
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -144,14 +166,22 @@ def test_should_list_past_working_hours_as_admin(
 
 def test_should_reject_working_hours_when_to_date_is_before_from_date(
     client: TestClient,
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    today = utc_now().date()
+    business_settings = create_business_settings()
+    timezone = business_settings.timezone
 
     response = client.get(
         "/working-hours/",
         params={
-            "from_date": today + timedelta(days=5),
-            "to_date": today + timedelta(days=1),
+            "from_date": get_local_date(
+                days_offset=5,
+                timezone=timezone,
+            ),
+            "to_date": get_local_date(
+                days_offset=1,
+                timezone=timezone,
+            ),
         },
     )
 
@@ -160,14 +190,19 @@ def test_should_reject_working_hours_when_to_date_is_before_from_date(
 
 def test_should_reject_working_hours_range_longer_than_31_days(
     client: TestClient,
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    today = utc_now().date()
+    business_settings = create_business_settings()
+    timezone = business_settings.timezone
 
     response = client.get(
         "/working-hours/",
         params={
-            "from_date": today,
-            "to_date": today + timedelta(days=32),
+            "from_date": get_local_date(timezone=timezone),
+            "to_date": get_local_date(
+                days_offset=32,
+                timezone=timezone,
+            ),
         },
     )
 
