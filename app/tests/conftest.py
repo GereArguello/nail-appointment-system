@@ -7,7 +7,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
-from sqlmodel import Session, SQLModel
+from sqlmodel import Session, SQLModel, select
 
 import app.models as models  # noqa: F401
 from app.appointments.models import Appointment
@@ -29,7 +29,6 @@ from app.tests.factories import (
 from app.tests.helpers import ensure_working_hour
 from app.users.models import User
 from app.users.schemas import UserRead
-from app.utils import parse_as_utc
 from app.working_hours.schemas import WorkingHourRead
 
 sqlite_url = "sqlite:///:memory:"
@@ -155,22 +154,29 @@ def admin_with_login(
 
 @pytest.fixture
 def create_working_hours(
-    client: TestClient, admin_with_login: tuple[UserRead, str]
+    client: TestClient,
+    admin_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> Callable[..., WorkingHourRead]:
 
     def _create_working_hours(**overrides: Any) -> WorkingHourRead:
         _, token = admin_with_login
-        data = create_working_hours_data(**overrides)
+        business_settings = create_business_settings()
+
+        data = create_working_hours_data(
+            timezone=business_settings.timezone,
+            **overrides,
+        )
 
         response = client.post(
-            "/working-hours/", json=data, headers={"Authorization": f"Bearer {token}"}
+            "/working-hours/",
+            json=data,
+            headers={"Authorization": f"Bearer {token}"},
         )
 
         assert response.status_code == status.HTTP_201_CREATED
 
-        response_data: dict[str, Any] = response.json()
-
-        return cast(WorkingHourRead, WorkingHourRead.model_validate(response_data))
+        return cast(WorkingHourRead, WorkingHourRead.model_validate(response.json()))
 
     return _create_working_hours
 
@@ -187,12 +193,12 @@ def create_calendar_block(
         _, token = admin_with_login
         data = create_calendar_block_data(**overrides)
 
-        starts_at = parse_as_utc(data["starts_at"])
+        starts_at_local = datetime.fromisoformat(data["starts_at"]).date()
 
         ensure_working_hour(
             session,
             create_working_hours,
-            starts_at.date(),
+            starts_at_local,
         )
 
         response = client.post(
@@ -251,6 +257,30 @@ def create_business_settings(
         )
 
     return _create_business_settings
+
+
+@pytest.fixture
+def ensure_business_settings(
+    session: Session,
+) -> Callable[..., BusinessSettingsRead]:
+    def _ensure_business_settings(**overrides: Any) -> BusinessSettingsRead:
+        business_settings = session.exec(select(BusinessSettings)).first()
+
+        if business_settings is None:
+            data = create_business_settings_data(**overrides)
+
+            business_settings = BusinessSettings(**data)
+
+            session.add(business_settings)
+            session.commit()
+            session.refresh(business_settings)
+
+        return cast(
+            BusinessSettingsRead,
+            BusinessSettingsRead.model_validate(business_settings),
+        )
+
+    return _ensure_business_settings
 
 
 @pytest.fixture

@@ -10,12 +10,12 @@ from sqlmodel import Session, select
 from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
+from app.core.datetime import as_utc
 from app.tests.helpers import (
     create_range_for_calendar_block,
     make_calendar_block_datetime,
 )
 from app.users.schemas import UserRead
-from app.utils import as_utc
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 
@@ -141,7 +141,8 @@ def test_delete_working_hour_should_delete_calendar_blocks_from_same_day(
     create_calendar_block: Callable[..., CalendarBlockRead],
     create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    business_settings = create_business_settings()
+    create_business_settings()
+
     _, token = admin_with_login
 
     working_hour = create_working_hours()
@@ -150,7 +151,6 @@ def test_delete_working_hour_should_delete_calendar_blocks_from_same_day(
         working_hour_date=working_hour.date,
         starts_at=time(10, 0),
         ends_at=time(11, 0),
-        timezone=business_settings.timezone,
     )
 
     block_1 = create_calendar_block(
@@ -162,7 +162,6 @@ def test_delete_working_hour_should_delete_calendar_blocks_from_same_day(
         working_hour_date=working_hour.date,
         starts_at=time(12, 0),
         ends_at=time(13, 0),
-        timezone=business_settings.timezone,
     )
 
     block_2 = create_calendar_block(

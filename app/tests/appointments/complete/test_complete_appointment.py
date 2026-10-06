@@ -7,9 +7,9 @@ from sqlmodel import Session
 
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentRead
+from app.core.datetime import utc_now
 from app.core.enums import AppointmentStatusEnum
 from app.users.schemas import UserRead
-from app.utils import utc_now
 
 
 def test_should_complete_confirmed_appointment(

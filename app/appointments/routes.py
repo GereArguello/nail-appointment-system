@@ -23,10 +23,10 @@ from app.appointments.service import (
 )
 from app.auth.dependencies import get_current_admin, get_current_user
 from app.core.database import SessionDep
+from app.core.datetime import as_utc, utc_now
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.service import get_service_or_404
 from app.users.models import User
-from app.utils import as_utc, utc_now
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 

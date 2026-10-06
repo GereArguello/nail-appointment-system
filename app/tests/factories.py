@@ -1,10 +1,9 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from app.core.config import settings
 from app.core.enums import TimezoneEnum
-from app.tests.helpers import make_calendar_block_datetime
-from app.utils import utc_now
+from app.tests.helpers import get_local_date, make_calendar_block_datetime
 
 
 def create_data(**overrides: Any) -> dict[str, Any]:
@@ -35,10 +34,20 @@ def create_service_data(**overrides: Any) -> dict[str, Any]:
     return data
 
 
-def create_working_hours_data(**overrides: Any) -> dict[str, Any]:
-    date = (utc_now() + timedelta(days=5)).date().isoformat()
+def create_working_hours_data(
+    timezone: TimezoneEnum,
+    **overrides: Any,
+) -> dict[str, Any]:
+    date = get_local_date(
+        days_offset=5,
+        timezone=timezone,
+    )
 
-    data = {"date": date, "start_time": "09:00:00", "end_time": "18:00:00"}
+    data = {
+        "date": date,
+        "start_time": "09:00:00",
+        "end_time": "18:00:00",
+    }
 
     data.update(overrides)
 

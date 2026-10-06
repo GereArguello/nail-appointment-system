@@ -1,10 +1,13 @@
+from datetime import UTC, datetime, time
 from typing import cast
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 from sqlmodel import Session
 
 from app.business_settings.models import BusinessSettings
 from app.core.config import settings
+from app.core.datetime import get_now_in_timezone
 
 
 def get_or_create_business_settings(
@@ -47,3 +50,37 @@ def get_business_settings_or_409(
         )
 
     return cast(BusinessSettings, business_settings)
+
+
+def get_business_now(session: Session) -> datetime:
+    """Obtiene la fecha y hora actuales en la zona horaria del negocio.
+
+    Recupera la configuración almacenada y utiliza su zona horaria
+    para expresar el instante actual.
+
+    Propaga el error 409 si la configuración del negocio no existe.
+    """
+    business_settings = get_business_settings_or_409(session)
+    return get_now_in_timezone(business_settings.timezone)
+
+
+def get_business_today_start_utc(session: Session) -> datetime:
+    """Obtiene el inicio del día actual del negocio expresado en UTC.
+
+    Determina la fecha actual según la zona horaria configurada para el
+    negocio, obtiene el inicio de ese día a las 00:00 y convierte ese
+    instante a UTC.
+
+    Propaga el error 409 si la configuración del negocio no existe.
+    """
+    business_settings = get_business_settings_or_409(session)
+
+    now_local = get_now_in_timezone(business_settings.timezone)
+
+    today_start_local = datetime.combine(
+        now_local.date(),
+        time.min,
+        tzinfo=ZoneInfo(business_settings.timezone),
+    )
+
+    return today_start_local.astimezone(UTC)

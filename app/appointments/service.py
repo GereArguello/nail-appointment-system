@@ -9,10 +9,10 @@ from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc
+from app.core.datetime import as_utc, utc_now
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.models import Service
 from app.users.models import User
-from app.utils import as_utc, utc_now
 from app.working_hours.models import WorkingHour
 
 

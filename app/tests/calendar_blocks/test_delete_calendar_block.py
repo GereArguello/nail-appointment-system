@@ -7,8 +7,8 @@ from sqlmodel import Session
 
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
+from app.core.datetime import utc_now
 from app.users.schemas import UserRead
-from app.utils import utc_now
 
 
 def test_delete_calendar_block_should_return_204(
@@ -77,10 +77,11 @@ def test_delete_calendar_block_should_return_403_when_block_already_started(
     block = session.get(CalendarBlock, calendar_block.id)
     assert block is not None
 
-    block.starts_at = utc_now() - timedelta(minutes=30)
-    block.ends_at = utc_now() + timedelta(minutes=30)
+    now = utc_now()
 
-    session.add(block)
+    block.starts_at = now - timedelta(minutes=30)
+    block.ends_at = now + timedelta(minutes=30)
+
     session.commit()
 
     response = client.delete(
@@ -99,7 +100,7 @@ def test_delete_calendar_block_should_return_403_when_block_already_started(
     assert existing_block is not None
 
 
-def test_delete_calendar_block_should_return_204_when_block_is_today_and_not_started(
+def test_delete_calendar_block_should_return_204_when_block_has_not_started(
     client: TestClient,
     session: Session,
     admin_with_login: tuple[UserRead, str],

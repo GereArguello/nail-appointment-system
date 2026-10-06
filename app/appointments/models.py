@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Column, ForeignKey
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.datetime import utc_now
 from app.core.enums import AppointmentStatusEnum
-from app.utils import utc_now
 
 if TYPE_CHECKING:
     from app.services.models import Service

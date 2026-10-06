@@ -2,8 +2,8 @@ from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
+from app.core.datetime import utc_now
 from app.core.enums import TimezoneEnum
-from app.utils import utc_now
 
 
 class BusinessSettingsBase(SQLModel):

@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from app.utils import utc_now
+from app.core.datetime import utc_now
 
 
 def make_calendar_block_datetime(

@@ -7,8 +7,8 @@ from sqlmodel import Session, select
 
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockRead
+from app.core.datetime import utc_now
 from app.tests.helpers import make_calendar_block_datetime
-from app.utils import utc_now
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 

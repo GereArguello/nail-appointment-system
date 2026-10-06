@@ -3,8 +3,8 @@ from datetime import UTC, datetime
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
+from app.core.datetime import as_utc
 from app.core.enums import AppointmentStatusEnum
-from app.utils import as_utc
 
 
 class AppointmentCreate(SQLModel):

@@ -3,9 +3,9 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
 
+from app.core.datetime import get_today_in_timezone
 from app.core.enums import RoleEnum, TimezoneEnum
 from app.users.models import User
-from app.working_hours.service import get_today_in_timezone
 
 
 def resolve_date_range(

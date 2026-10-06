@@ -6,11 +6,11 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session
 
 from app.business_settings.schemas import BusinessSettingsRead
+from app.core.datetime import as_utc
 from app.core.enums import AppointmentStatusEnum, StatusEnum
 from app.services.models import Service
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
-from app.utils import as_utc
 from app.working_hours.schemas import WorkingHourRead
 
 

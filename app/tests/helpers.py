@@ -32,12 +32,13 @@ def make_calendar_block_datetime(
     hour: int,
     timezone: TimezoneEnum | None = None,
 ) -> str:
-    """Genera una fecha y hora para un bloqueo de calendario.
+    """Genera una fecha y hora local para crear un bloqueo de calendario.
 
     Calcula una fecha relativa al día actual en la zona horaria del negocio
     utilizando days y establece la hora local indicada.
 
-    Convierte el resultado a UTC y lo devuelve como cadena ISO 8601.
+    Devuelve el datetime como cadena ISO 8601 sin información de zona horaria,
+    tal como debe enviarse a la API.
     """
     tz = ZoneInfo(
         (timezone if timezone is not None else settings.BUSINESS_TIMEZONE).value
@@ -48,10 +49,21 @@ def make_calendar_block_datetime(
     local_datetime = datetime.combine(
         local_date,
         time(hour=hour),
-        tzinfo=tz,
     )
 
-    return local_datetime.astimezone(UTC).isoformat()
+    return local_datetime.isoformat()
+
+
+def local_naive_iso_as_utc(
+    value: str,
+    timezone: TimezoneEnum,
+) -> datetime:
+    """Interpreta un datetime ISO naive como horario local y lo convierte a UTC."""
+    tz = ZoneInfo(timezone.value)
+
+    local_datetime = datetime.fromisoformat(value).replace(tzinfo=tz)
+
+    return local_datetime.astimezone(UTC)
 
 
 def create_range_for_calendar_block(
@@ -59,29 +71,36 @@ def create_range_for_calendar_block(
     working_hour_date: date,
     starts_at: time,
     ends_at: time,
-    timezone: TimezoneEnum,
 ) -> tuple[str, str]:
-    """Genera un intervalo temporal para un bloqueo de calendario.
+    """Genera un intervalo local naive para un bloqueo de calendario.
 
-    Combina la fecha laboral con las horas locales de inicio y finalización,
-    interpretándolas según la zona horaria del negocio.
-
-    Convierte ambos extremos a UTC y devuelve una tupla de cadenas
-    ISO 8601 con el inicio y la finalización del intervalo.
+    Combina la fecha laboral con las horas de inicio y finalización y devuelve
+    ambos datetimes como cadenas ISO 8601 sin información de zona horaria.
     """
-
-    tz = ZoneInfo(timezone.value)
-
     start_datetime = datetime.combine(
         working_hour_date,
         starts_at,
-        tzinfo=tz,
-    ).astimezone(UTC)
+    )
 
     end_datetime = datetime.combine(
         working_hour_date,
         ends_at,
-        tzinfo=tz,
-    ).astimezone(UTC)
+    )
 
     return start_datetime.isoformat(), end_datetime.isoformat()
+
+
+def get_local_date(
+    days_offset: int = 0,
+    timezone: TimezoneEnum | None = None,
+) -> str:
+    """Obtiene una fecha relativa al día actual en la zona horaria indicada.
+
+    Utiliza la zona horaria configurada para el negocio si no se proporciona
+    ninguna. Permite obtener fechas pasadas o futuras mediante days_offset.
+
+    Devuelve la fecha como cadena en formato ISO 8601 (YYYY-MM-DD).
+    """
+    tz = ZoneInfo((timezone or settings.BUSINESS_TIMEZONE).value)
+
+    return (datetime.now(tz) + timedelta(days=days_offset)).date().isoformat()

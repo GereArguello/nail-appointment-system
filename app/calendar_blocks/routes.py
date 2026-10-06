@@ -1,18 +1,24 @@
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
 from app.auth.dependencies import get_current_admin, get_current_user_optional
-from app.business_settings.service import get_business_settings_or_409
+from app.business_settings.service import (
+    get_business_settings_or_409,
+    get_business_today_start_utc,
+)
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockCreate, CalendarBlockRead
-from app.calendar_blocks.service import validate_calendar_block_creation
+from app.calendar_blocks.service import (
+    localize_calendar_block_range,
+    validate_calendar_block_creation,
+)
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
+from app.core.datetime import as_utc, utc_now
 from app.core.enums import RoleEnum
 from app.users.models import User
-from app.utils import as_utc, utc_now
 
 router = APIRouter(prefix="/calendar-blocks", tags=["calendar-blocks"])
 
@@ -36,7 +42,15 @@ def create_calendar_block(
 
     validate_calendar_block_creation(session, data)
 
-    db_calendar_block = CalendarBlock(**data.model_dump())
+    starts_at_local, ends_at_local = localize_calendar_block_range(
+        session, data.starts_at, data.ends_at
+    )
+
+    db_calendar_block = CalendarBlock(
+        starts_at=starts_at_local.astimezone(UTC),
+        ends_at=ends_at_local.astimezone(UTC),
+        reason=data.reason,
+    )
 
     session.add(db_calendar_block)
     session.commit()
@@ -102,15 +116,16 @@ def read_calendar_block(
 ) -> CalendarBlockRead:
     """Obtiene un bloqueo de calendario por su identificador.
 
-    Los usuarios públicos solo pueden consultar bloqueos actuales o futuros.
-    Los administradores también pueden consultar bloqueos pasados.
+    Los usuarios públicos solo pueden consultar bloqueos del día actual
+    o posteriores. Los administradores también pueden consultar bloqueos
+    pasados.
     """
-    today_start = datetime.combine(utc_now().date(), time.min, tzinfo=UTC)
-
     query = select(CalendarBlock).where(CalendarBlock.id == calendar_block_id)
 
     if not current_user or current_user.role != RoleEnum.ADMIN:
-        query = query.where(CalendarBlock.starts_at >= today_start)
+        today_start_utc = get_business_today_start_utc(session)
+
+        query = query.where(CalendarBlock.starts_at >= today_start_utc)
 
     calendar_block = session.exec(query).first()
 

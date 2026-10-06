@@ -6,7 +6,7 @@ import pytest
 from sqlmodel import Session
 
 from app.business_settings.schemas import BusinessSettingsRead
-from app.tests.utils import get_local_date
+from app.tests.helpers import get_local_date
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
 

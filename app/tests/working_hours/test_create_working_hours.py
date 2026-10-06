@@ -7,7 +7,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.business_settings.schemas import BusinessSettingsRead
-from app.tests.utils import get_local_date
+from app.tests.helpers import get_local_date
 from app.users.schemas import UserRead
 
 

@@ -1,18 +1,22 @@
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import date, timedelta
 
 from fastapi import status
 from fastapi.testclient import TestClient
 
+from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.schemas import CalendarBlockRead
+from app.tests.helpers import get_local_date
 from app.users.schemas import UserRead
-from app.utils import utc_now
 
 
 def test_should_return_calendar_block_list(
     client: TestClient,
     create_calendar_block_list: Callable[[int], list[CalendarBlockRead]],
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    ensure_business_settings()
+
     created = create_calendar_block_list(3)
 
     response = client.get("/calendar-blocks/")
@@ -32,7 +36,10 @@ def test_should_list_past_calendar_blocks_as_admin(
     create_calendar_block_list: Callable[[int], list[CalendarBlockRead]],
     create_past_calendar_block: Callable[..., CalendarBlockRead],
     admin_with_login: tuple[UserRead, str],
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    ensure_business_settings()
+
     future = create_calendar_block_list(5)
     past = create_past_calendar_block()
 
@@ -63,7 +70,10 @@ def test_should_reject_past_calendar_blocks_range_for_non_admin(
     create_calendar_block_list: Callable[[int], list[CalendarBlockRead]],
     create_past_calendar_block: Callable[..., CalendarBlockRead],
     user_with_login: tuple[UserRead, str],
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    ensure_business_settings()
+
     future = create_calendar_block_list(5)
     past = create_past_calendar_block()
 
@@ -87,8 +97,16 @@ def test_should_reject_past_calendar_blocks_range_for_non_admin(
 
 def test_should_reject_when_to_date_is_before_from_date(
     client: TestClient,
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    today = utc_now().date()
+    business_settings = ensure_business_settings()
+
+    today = date.fromisoformat(
+        get_local_date(
+            days_offset=0,
+            timezone=business_settings.timezone,
+        )
+    )
 
     response = client.get(
         "/calendar-blocks/",
@@ -106,8 +124,16 @@ def test_should_reject_when_to_date_is_before_from_date(
 
 def test_should_reject_range_longer_than_31_days(
     client: TestClient,
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    today = utc_now().date()
+    business_settings = ensure_business_settings()
+
+    today = date.fromisoformat(
+        get_local_date(
+            days_offset=0,
+            timezone=business_settings.timezone,
+        )
+    )
 
     response = client.get(
         "/calendar-blocks/",
@@ -125,7 +151,10 @@ def test_should_list_future_calendar_blocks_for_non_admin(
     client: TestClient,
     create_calendar_block_list: Callable[[int], list[CalendarBlockRead]],
     user_with_login: tuple[UserRead, str],
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    ensure_business_settings()
+
     created = create_calendar_block_list(5)
 
     _, token = user_with_login

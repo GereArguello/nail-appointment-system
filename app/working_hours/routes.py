@@ -9,13 +9,13 @@ from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
+from app.core.datetime import get_now_in_timezone
 from app.core.enums import RoleEnum
 from app.users.models import User
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourCreate, WorkingHourRead
 from app.working_hours.service import (
     get_business_now,
-    get_now_in_timezone,
     validate_working_hour_date,
 )
 

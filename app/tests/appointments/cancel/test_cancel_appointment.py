@@ -8,9 +8,9 @@ from sqlmodel import Session
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentRead
 from app.business_settings.models import BusinessSettings
+from app.core.datetime import utc_now
 from app.core.enums import AppointmentStatusEnum
 from app.users.schemas import UserRead
-from app.utils import utc_now
 
 
 @pytest.mark.parametrize(
