@@ -27,8 +27,8 @@ def test_should_exclude_slots_overlapping_calendar_block(
     )
 
     create_calendar_block(
-        starts_at=f"{working_hour.date}T10:30:00+00:00",
-        ends_at=f"{working_hour.date}T11:30:00+00:00",
+        starts_at=f"{working_hour.date}T10:30:00",
+        ends_at=f"{working_hour.date}T11:30:00",
     )
 
     service = create_service(
@@ -48,12 +48,12 @@ def test_should_exclude_slots_overlapping_calendar_block(
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == [
-        f"{working_hour.date}T09:00:00Z",
-        f"{working_hour.date}T09:15:00Z",
-        f"{working_hour.date}T09:30:00Z",
-        f"{working_hour.date}T09:45:00Z",
-        f"{working_hour.date}T10:00:00Z",
-        f"{working_hour.date}T11:30:00Z",
+        f"{working_hour.date}T09:00:00",
+        f"{working_hour.date}T09:15:00",
+        f"{working_hour.date}T09:30:00",
+        f"{working_hour.date}T09:45:00",
+        f"{working_hour.date}T10:00:00",
+        f"{working_hour.date}T11:30:00",
     ]
 
 
@@ -75,8 +75,8 @@ def test_should_exclude_slots_overlapping_calendar_block_with_service_buffers(
     )
 
     create_calendar_block(
-        starts_at=f"{working_hour.date}T10:30:00+00:00",
-        ends_at=f"{working_hour.date}T11:00:00+00:00",
+        starts_at=f"{working_hour.date}T10:30:00",
+        ends_at=f"{working_hour.date}T11:00:00",
     )
 
     service = create_service(
@@ -96,8 +96,8 @@ def test_should_exclude_slots_overlapping_calendar_block_with_service_buffers(
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == [
-        f"{working_hour.date}T09:10:00Z",
-        f"{working_hour.date}T09:25:00Z",
-        f"{working_hour.date}T09:40:00Z",
-        f"{working_hour.date}T11:10:00Z",
+        f"{working_hour.date}T09:10:00",
+        f"{working_hour.date}T09:25:00",
+        f"{working_hour.date}T09:40:00",
+        f"{working_hour.date}T11:10:00",
     ]

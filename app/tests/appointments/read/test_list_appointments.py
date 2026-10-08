@@ -1,10 +1,12 @@
 from collections.abc import Callable
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.appointments.schemas import AppointmentRead
+from app.business_settings.schemas import BusinessSettingsRead
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
 
@@ -43,7 +45,7 @@ def test_should_return_only_user_appointments(
     create_appointment(
         user_id=another_user.id,
         service=service,
-        starts_at=datetime.now(UTC) + timedelta(days=10),
+        starts_at=datetime.now() + timedelta(days=10),
     )
 
     response = client.get(
@@ -62,7 +64,9 @@ def test_should_return_only_user_appointments(
 def test_should_return_empty_list_if_user_has_no_appointments(
     client: TestClient,
     user_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     _, token = user_with_login
 
     response = client.get(
@@ -78,10 +82,16 @@ def test_should_filter_appointments_by_from_date(
     client: TestClient,
     appointments: list[AppointmentRead],
     admin_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     _, token = admin_with_login
 
-    from_date = appointments[2].starts_at
+    from_date = (
+        appointments[2]
+        .starts_at.astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+    )
 
     response = client.get(
         "/appointments",
@@ -94,7 +104,10 @@ def test_should_filter_appointments_by_from_date(
     data = response.json()
 
     assert all(
-        datetime.fromisoformat(appointment["starts_at"]) >= from_date
+        datetime.fromisoformat(appointment["starts_at"])
+        .astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+        >= from_date
         for appointment in data
     )
 
@@ -103,10 +116,16 @@ def test_should_filter_appointments_by_to_date(
     client: TestClient,
     appointments: list[AppointmentRead],
     admin_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     _, token = admin_with_login
 
-    to_date = appointments[2].starts_at
+    to_date = (
+        appointments[2]
+        .starts_at.astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+    )
 
     response = client.get(
         "/appointments",
@@ -119,7 +138,10 @@ def test_should_filter_appointments_by_to_date(
     data = response.json()
 
     assert all(
-        datetime.fromisoformat(appointment["starts_at"]) <= to_date
+        datetime.fromisoformat(appointment["starts_at"])
+        .astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+        <= to_date
         for appointment in data
     )
 
@@ -128,11 +150,21 @@ def test_should_filter_appointments_by_date_range(
     client: TestClient,
     appointments: list[AppointmentRead],
     admin_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     _, token = admin_with_login
 
-    from_date = appointments[1].starts_at
-    to_date = appointments[3].starts_at
+    from_date = (
+        appointments[1]
+        .starts_at.astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+    )
+    to_date = (
+        appointments[3]
+        .starts_at.astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+    )
 
     response = client.get(
         "/appointments",
@@ -148,7 +180,11 @@ def test_should_filter_appointments_by_date_range(
     data = response.json()
 
     assert all(
-        from_date <= datetime.fromisoformat(appointment["starts_at"]) <= to_date
+        from_date
+        <= datetime.fromisoformat(appointment["starts_at"])
+        .astimezone(ZoneInfo(business_settings.timezone))
+        .date()
+        <= to_date
         for appointment in data
     )
 
@@ -156,7 +192,9 @@ def test_should_filter_appointments_by_date_range(
     expected_ids = {
         appointment.id
         for appointment in appointments
-        if from_date <= appointment.starts_at <= to_date
+        if from_date
+        <= appointment.starts_at.astimezone(ZoneInfo(business_settings.timezone)).date()
+        <= to_date
     }
 
     assert returned_ids == expected_ids
@@ -165,10 +203,13 @@ def test_should_filter_appointments_by_date_range(
 def test_should_fail_if_to_date_is_before_from_date(
     client: TestClient,
     admin_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    business_settings = create_business_settings()
     _, token = admin_with_login
 
-    from_date = datetime.now(UTC)
+    from_date = datetime.now(ZoneInfo(business_settings.timezone)).date()
+
     to_date = from_date - timedelta(days=1)
 
     response = client.get(

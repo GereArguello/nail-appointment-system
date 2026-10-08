@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta
 
 import pytest
 from fastapi import Response
@@ -39,11 +39,13 @@ def appointment(
 
 @pytest.fixture
 def appointments(
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     create_appointment: Callable[..., AppointmentRead],
     user_with_login: tuple[UserRead, str],
 ) -> list[AppointmentRead]:
-    service, _, starts_at = appointment_creation_setup
+    _, service, _, starts_at = appointment_creation_setup
     user, _ = user_with_login
 
     return [
@@ -61,14 +63,17 @@ def appointment_creation_setup(
     create_business_settings: Callable[..., BusinessSettingsRead],
     create_service: Callable[..., ServiceRead],
     create_working_hours: Callable[..., WorkingHourRead],
-) -> tuple[ServiceRead, WorkingHourRead, datetime]:
-    create_business_settings()
+) -> tuple[BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime]:
+    business_settings = create_business_settings()
     service = create_service()
     working_hour = create_working_hours()
 
-    starts_at = datetime.combine(working_hour.date, working_hour.start_time, tzinfo=UTC)
+    starts_at = datetime.combine(
+        working_hour.date,
+        working_hour.start_time,
+    )
 
-    return service, working_hour, starts_at
+    return business_settings, service, working_hour, starts_at
 
 
 @pytest.fixture
@@ -100,11 +105,13 @@ def post_appointment(
 
 @pytest.fixture
 def appointment_overlap_setup(
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     create_appointment: Callable[..., AppointmentRead],
     user_with_login: tuple[UserRead, str],
-) -> tuple[ServiceRead, AppointmentRead, str]:
-    service, _, starts_at = appointment_creation_setup
+) -> tuple[BusinessSettingsRead, ServiceRead, AppointmentRead, str]:
+    business_settings, service, _, starts_at = appointment_creation_setup
     user, token = user_with_login
 
     starts_at += timedelta(hours=1)
@@ -115,7 +122,7 @@ def appointment_overlap_setup(
         starts_at=starts_at,
     )
 
-    return service, appointment, token
+    return business_settings, service, appointment, token
 
 
 @pytest.fixture
@@ -123,12 +130,12 @@ def appointment_overlap_context(
     create_business_settings: Callable[..., BusinessSettingsRead],
     create_working_hours: Callable[..., WorkingHourRead],
     user_with_login: tuple[UserRead, str],
-) -> tuple[WorkingHourRead, UserRead, str]:
-    create_business_settings()
+) -> tuple[BusinessSettingsRead, WorkingHourRead, UserRead, str]:
+    business_settings = create_business_settings()
     working_hour = create_working_hours()
     user, token = user_with_login
 
-    return working_hour, user, token
+    return business_settings, working_hour, user, token
 
 
 @pytest.fixture
@@ -165,15 +172,16 @@ def adjacent_appointment_setup(
 
 @pytest.fixture
 def calendar_block_setup(
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     create_calendar_block: Callable[..., CalendarBlockRead],
 ) -> tuple[datetime, datetime]:
-    _, working_hour, _ = appointment_creation_setup
+    _, _, working_hour, _ = appointment_creation_setup
 
     block_starts_at = datetime.combine(
         working_hour.date,
         time(hour=11),
-        tzinfo=UTC,
     )
     block_ends_at = block_starts_at + timedelta(hours=1)
 

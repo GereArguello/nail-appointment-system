@@ -3,6 +3,7 @@ from datetime import date, datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
 
+from app.appointments.helper import convert_business_range_to_utc
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentCreate, AppointmentRead
 from app.appointments.service import (
@@ -23,6 +24,7 @@ from app.appointments.service import (
 )
 from app.auth.dependencies import get_current_admin, get_current_user
 from app.core.database import SessionDep
+from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
 from app.core.datetime import as_utc, utc_now
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.service import get_service_or_404
@@ -50,18 +52,30 @@ def create_appointment(
 
     service = get_service_or_404(appointment_data.service_id, session)
 
-    start_time, end_time = calculate_appointment_time_range(
+    occupied_start, occupied_end = calculate_appointment_time_range(
         appointment_data.starts_at, service
     )
 
-    validate_within_working_hours(start_time, end_time, session)
+    validate_within_working_hours(occupied_start, occupied_end, session)
 
-    validate_no_calendar_block_overlap(start_time, end_time, session)
+    occupied_start_utc, occupied_end_utc = convert_business_range_to_utc(
+        session,
+        occupied_start,
+        occupied_end,
+    )
 
-    validate_no_appointment_overlap(start_time, end_time, session)
+    validate_no_calendar_block_overlap(occupied_start_utc, occupied_end_utc, session)
 
-    appointment_ends_at = appointment_data.starts_at + timedelta(
+    validate_no_appointment_overlap(occupied_start_utc, occupied_end_utc, session)
+
+    appointment_ends_local = appointment_data.starts_at + timedelta(
         minutes=service.duration_minutes
+    )
+
+    appointment_start_utc, appointment_end_utc = convert_business_range_to_utc(
+        session,
+        appointment_data.starts_at,
+        appointment_ends_local,
     )
 
     agreed_price, agreed_deposit, payment_expires_at = (
@@ -77,8 +91,8 @@ def create_appointment(
     appointment = Appointment(
         user_id=current_user.id,
         service_id=appointment_data.service_id,
-        starts_at=appointment_data.starts_at,
-        ends_at=appointment_ends_at,
+        starts_at=appointment_start_utc,
+        ends_at=appointment_end_utc,
         status=appointment_status,
         agreed_price=agreed_price,
         agreed_deposit=agreed_deposit,
@@ -135,7 +149,7 @@ def get_availability(
         if not has_appointment_overlap(
             start_time, end_time, appointments
         ) and not has_calendar_block_overlap(start_time, end_time, calendar_blocks):
-            slots.append(appoint)
+            slots.append(appoint.replace(tzinfo=None))
 
         appoint += step
 
@@ -207,34 +221,38 @@ def confirm_appointment(
 def list_appointments(
     session: SessionDep,
     current_user: User = Depends(get_current_user),
-    from_date: datetime | None = None,
-    to_date: datetime | None = None,
+    from_date: date | None = None,
+    to_date: date | None = None,
 ) -> list[AppointmentRead]:
     """Lista las citas accesibles para el usuario autenticado.
 
     Los administradores pueden consultar todas las citas, mientras
     que los usuarios comunes solo pueden consultar las propias.
 
-    Permite filtrar opcionalmente por fecha de inicio mediante
-    from_date y to_date. Si ambas fechas se especifican, la fecha
-    final no puede ser anterior a la inicial.
+    Permite filtrar por un rango de fechas locales del negocio.
+    El rango se convierte a UTC antes de realizar la consulta.
     """
+    business_settings = get_business_settings_or_409(session)
+
     if current_user.role == RoleEnum.ADMIN:
         statement = select(Appointment)
     else:
         statement = select(Appointment).where(Appointment.user_id == current_user.id)
 
-    if from_date is not None and to_date is not None and to_date < from_date:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="La fecha final no puede ser anterior a la inicial",
-        )
+    start_date, end_date, _ = resolve_date_range(
+        from_date=from_date,
+        to_date=to_date,
+        timezone=business_settings.timezone,
+    )
 
-    if from_date is not None:
-        statement = statement.where(Appointment.starts_at >= from_date)
+    start_datetime, end_datetime = date_range_as_datetime_utc(
+        start_date, end_date, timezone=business_settings.timezone
+    )
 
-    if to_date is not None:
-        statement = statement.where(Appointment.starts_at <= to_date)
+    statement = statement.where(
+        Appointment.starts_at >= start_datetime,
+        Appointment.starts_at < end_datetime,
+    )
 
     return list(session.exec(statement).all())
 

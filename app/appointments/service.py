@@ -1,22 +1,22 @@
 from datetime import UTC, date, datetime, timedelta
 from typing import cast
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException, status
-from sqlmodel import col, select
+from sqlmodel import Session, col, select
 
 from app.appointments.models import Appointment
 from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
-from app.core.database import SessionDep
 from app.core.date_ranges import date_range_as_datetime_utc
-from app.core.datetime import as_utc, utc_now
+from app.core.datetime import as_utc, localize_business_datetime, utc_now
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.models import Service
 from app.users.models import User
 from app.working_hours.models import WorkingHour
 
 
-def get_appointment_or_404(appointment_id: int, session: SessionDep) -> Appointment:
+def get_appointment_or_404(appointment_id: int, session: Session) -> Appointment:
     """Obtiene la cita asociada por id.
 
     Lanza un error 404 si la cita solicitada no existe.
@@ -52,7 +52,7 @@ def calculate_appointment_time_range(
 
 
 def validate_within_working_hours(
-    start_time: datetime, end_time: datetime, session: SessionDep
+    start_time: datetime, end_time: datetime, session: Session
 ) -> None:
     """Valida que una cita se encuentre dentro del horario laboral.
 
@@ -88,14 +88,15 @@ def validate_within_working_hours(
 
 
 def validate_no_calendar_block_overlap(
-    start_time: datetime, end_time: datetime, session: SessionDep
+    start_time_utc: datetime,
+    end_time_utc: datetime,
+    session: Session,
 ) -> None:
-    """Valida que una cita no se superponga con un bloqueo de calendario.
+    """Valida que una cita no se superponga con un bloqueo de calendario."""
 
-    El rango ocupado por la cita no puede coincidir total ni parcialmente
-    con un bloqueo existente."""
     query = select(CalendarBlock).where(
-        (CalendarBlock.starts_at < end_time) & (CalendarBlock.ends_at > start_time)
+        (CalendarBlock.starts_at < end_time_utc)
+        & (CalendarBlock.ends_at > start_time_utc)
     )
 
     calendar_block = session.exec(query).first()
@@ -108,16 +109,21 @@ def validate_no_calendar_block_overlap(
 
 
 def validate_no_appointment_overlap(
-    start_time: datetime, end_time: datetime, session: SessionDep
+    start_time_utc: datetime,
+    end_time_utc: datetime,
+    session: Session,
 ) -> None:
     """Valida que una cita no se superponga con otra cita existente.
 
     La comparación contempla los buffers configurados en el servicio
-    asociado a cada cita existente."""
+    asociado a cada cita existente.
+    """
     business_settings = get_business_settings_or_409(session)
 
     day_start, day_end = date_range_as_datetime_utc(
-        start_time.date(), end_time.date(), timezone=business_settings.timezone
+        start_time_utc.astimezone(ZoneInfo(business_settings.timezone)).date(),
+        end_time_utc.astimezone(ZoneInfo(business_settings.timezone)).date(),
+        timezone=business_settings.timezone,
     )
 
     blocking_statuses = {
@@ -139,21 +145,48 @@ def validate_no_appointment_overlap(
     results = session.exec(query).all()
 
     for appointment, service in results:
-        start_with_buffer = appointment.starts_at - timedelta(
+        appointment_starts_at = as_utc(appointment.starts_at)
+        appointment_ends_at = as_utc(appointment.ends_at)
+
+        start_with_buffer = appointment_starts_at - timedelta(
             minutes=service.buffer_before_minutes
         )
-        end_with_buffer = appointment.ends_at + timedelta(
+        end_with_buffer = appointment_ends_at + timedelta(
             minutes=service.buffer_after_minutes
         )
 
-        if start_time < end_with_buffer and end_time > start_with_buffer:
+        if start_time_utc < end_with_buffer and end_time_utc > start_with_buffer:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT, detail="Horario ya ocupado"
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Horario ya ocupado",
             )
 
 
+def localize_appointment_range_to_utc(
+    session: Session,
+    starts_at: datetime,
+    ends_at: datetime,
+) -> tuple[datetime, datetime]:
+    business_settings = get_business_settings_or_409(session)
+
+    starts_at_local = localize_business_datetime(
+        starts_at,
+        business_settings.timezone,
+    )
+
+    ends_at_local = localize_business_datetime(
+        ends_at,
+        business_settings.timezone,
+    )
+
+    return (
+        starts_at_local.astimezone(UTC),
+        ends_at_local.astimezone(UTC),
+    )
+
+
 def resolve_appointment_payment_terms(
-    service: Service, session: SessionDep
+    service: Service, session: Session
 ) -> tuple[int, int, datetime | None]:
     """Resuelve las condiciones de pago de una cita.
 
@@ -175,7 +208,7 @@ def resolve_appointment_payment_terms(
 
 
 def validate_cancellation_deadline(
-    session: SessionDep,
+    session: Session,
     appointment: Appointment,
     user: User,
 ) -> None:
@@ -205,7 +238,7 @@ def validate_cancellation_deadline(
 
 
 def get_working_hour_by_date(
-    session: SessionDep,
+    session: Session,
     target_date: date,
 ) -> WorkingHour:
     """Obtiene el horario laboral configurado para una fecha.
@@ -226,7 +259,7 @@ def get_working_hour_by_date(
 
 
 def get_calendar_blocks_by_date(
-    session: SessionDep,
+    session: Session,
     target_date: date,
 ) -> list[CalendarBlock]:
     """Obtiene los bloqueos de calendario que intersectan una fecha.
@@ -250,7 +283,7 @@ def get_calendar_blocks_by_date(
 
 
 def get_appointments_by_date(
-    session: SessionDep, target_date: date
+    session: Session, target_date: date
 ) -> list[tuple[Appointment, Service]]:
     """Obtiene las citas que ocupan disponibilidad en una fecha.
 
@@ -284,7 +317,7 @@ def get_appointments_by_date(
 
 
 def calculate_first_and_last_possible_start(
-    session: SessionDep, working_hour: WorkingHour, service: Service
+    session: Session, working_hour: WorkingHour, service: Service
 ) -> tuple[datetime, datetime]:
     """Calcula el primer y último inicio posible para un servicio.
 
@@ -295,10 +328,12 @@ def calculate_first_and_last_possible_start(
     """
     business_settings = get_business_settings_or_409(session)
 
+    timezone = ZoneInfo(business_settings.timezone)
+
     working_start = datetime.combine(
         working_hour.date,
         working_hour.start_time,
-        tzinfo=UTC,
+        tzinfo=timezone,
     )
 
     occupied_start_limit = working_start - timedelta(
@@ -312,7 +347,7 @@ def calculate_first_and_last_possible_start(
     working_end = datetime.combine(
         working_hour.date,
         working_hour.end_time,
-        tzinfo=UTC,
+        tzinfo=timezone,
     )
 
     occupied_end_limit = working_end + timedelta(
@@ -338,11 +373,12 @@ def has_calendar_block_overlap(
     calendar_blocks: list[CalendarBlock],
 ) -> bool:
     """Indica si un rango se superpone con algún bloqueo de calendario."""
-    start_time = as_utc(start_time)
-    end_time = as_utc(end_time)
+    start_time_utc = start_time.astimezone(UTC)
+    end_time_utc = end_time.astimezone(UTC)
 
     return any(
-        as_utc(block.starts_at) < end_time and as_utc(block.ends_at) > start_time
+        as_utc(block.starts_at) < end_time_utc
+        and as_utc(block.ends_at) > start_time_utc
         for block in calendar_blocks
     )
 
@@ -357,6 +393,9 @@ def has_appointment_overlap(
     La comparación considera los buffers del servicio asociado
     a cada cita existente.
     """
+    start_time_utc = start_time.astimezone(UTC)
+    end_time_utc = end_time.astimezone(UTC)
+
     for appointment, service in appointments:
         start_with_buffer = as_utc(
             appointment.starts_at - timedelta(minutes=service.buffer_before_minutes)
@@ -366,10 +405,7 @@ def has_appointment_overlap(
             appointment.ends_at + timedelta(minutes=service.buffer_after_minutes)
         )
 
-        if (
-            as_utc(start_time) < end_with_buffer
-            and as_utc(end_time) > start_with_buffer
-        ):
+        if start_time_utc < end_with_buffer and end_time_utc > start_with_buffer:
             return True
 
     return False

@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from app.business_settings.models import BusinessSettings
+from app.core.enums import TimezoneEnum
 from app.users.schemas import UserRead
 
 
@@ -34,8 +35,7 @@ def test_should_read_existing_business_settings(
     _, token = admin_with_login
 
     business_settings = BusinessSettings(
-        id=1,
-        appointment_end_tolerance_minutes=15,
+        id=1, appointment_end_tolerance_minutes=15, timezone=TimezoneEnum.BUENOS_AIRES
     )
 
     session.add(business_settings)

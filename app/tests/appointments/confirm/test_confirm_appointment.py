@@ -1,10 +1,11 @@
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import datetime
 
 from fastapi import status
 from fastapi.testclient import TestClient
 
 from app.appointments.schemas import AppointmentRead
+from app.business_settings.schemas import BusinessSettingsRead
 from app.core.enums import AppointmentStatusEnum
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
@@ -35,7 +36,9 @@ def test_should_fail_to_confirm_appointment_if_status_is_not_pending_confirmatio
     create_service: Callable[..., ServiceRead],
     admin_with_login: tuple[UserRead, str],
     user_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     user, _ = user_with_login
     _, token = admin_with_login
 
@@ -44,7 +47,7 @@ def test_should_fail_to_confirm_appointment_if_status_is_not_pending_confirmatio
     appointment = create_appointment(
         user_id=user.id,
         service=service,
-        starts_at=datetime.now(UTC),
+        starts_at=datetime.now(),
         status=AppointmentStatusEnum.PENDING_PAYMENT,
     )
 
@@ -79,7 +82,9 @@ def test_should_fail_to_confirm_appointment_if_user_is_not_admin(
     create_appointment: Callable[..., AppointmentRead],
     create_service: Callable[..., ServiceRead],
     user_with_login: tuple[UserRead, str],
+    create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
+    create_business_settings()
     user, token = user_with_login
 
     service = create_service()
@@ -87,7 +92,7 @@ def test_should_fail_to_confirm_appointment_if_user_is_not_admin(
     appointment = create_appointment(
         user_id=user.id,
         service=service,
-        starts_at=datetime.now(UTC),
+        starts_at=datetime.now(),
     )
 
     response = client.patch(

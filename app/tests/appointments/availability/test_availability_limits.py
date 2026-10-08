@@ -1,5 +1,6 @@
 from collections.abc import Callable
-from datetime import UTC, datetime, time
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from fastapi import status
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ def test_should_calculate_first_and_last_possible_start(
     create_service: Callable[..., ServiceRead],
     create_business_settings: Callable[..., BusinessSettingsRead],
 ) -> None:
-    create_business_settings(
+    business_settings = create_business_settings(
         appointment_start_tolerance_minutes=5,
         appointment_end_tolerance_minutes=10,
     )
@@ -40,17 +41,11 @@ def test_should_calculate_first_and_last_possible_start(
         service,
     )
 
-    expected_first = datetime.combine(
-        working_hour.date,
-        time(9, 5),
-        tzinfo=UTC,
-    )
+    timezone = ZoneInfo(business_settings.timezone)
 
-    expected_last = datetime.combine(
-        working_hour.date,
-        time(16, 55),
-        tzinfo=UTC,
-    )
+    expected_first = datetime.combine(working_hour.date, time(9, 5), tzinfo=timezone)
+
+    expected_last = datetime.combine(working_hour.date, time(16, 55), tzinfo=timezone)
 
     assert first == expected_first
     assert last == expected_last
@@ -158,9 +153,9 @@ def test_should_return_all_available_slots_when_day_is_empty(
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == [
-        f"{working_hour.date}T09:00:00Z",
-        f"{working_hour.date}T09:15:00Z",
-        f"{working_hour.date}T09:30:00Z",
+        f"{working_hour.date}T09:00:00",
+        f"{working_hour.date}T09:15:00",
+        f"{working_hour.date}T09:30:00",
     ]
 
 
@@ -188,8 +183,8 @@ def test_should_return_empty_list_if_no_slots_are_available(
     )
 
     create_calendar_block(
-        starts_at=f"{working_hour.date}T09:00:00+00:00",
-        ends_at=f"{working_hour.date}T10:00:00+00:00",
+        starts_at=f"{working_hour.date}T09:00:00",
+        ends_at=f"{working_hour.date}T10:00:00",
     )
 
     response = client.get(

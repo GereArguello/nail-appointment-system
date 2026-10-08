@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 from fastapi import Response, status
 
+from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
@@ -12,10 +13,12 @@ from app.working_hours.schemas import WorkingHourRead
 def test_should_fail_if_appointment_overlaps_calendar_block(
     create_calendar_block: Callable[..., CalendarBlockRead],
     user_with_login: tuple[UserRead, str],
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, _, starts_at = appointment_creation_setup
+    _, service, _, starts_at = appointment_creation_setup
 
     create_calendar_block(
         starts_at=starts_at.isoformat(),
@@ -35,12 +38,14 @@ def test_should_fail_if_appointment_overlaps_calendar_block(
 
 
 def test_should_fail_if_appointment_partially_overlaps_calendar_block(
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     calendar_block_setup: tuple[datetime, datetime],
     user_with_login: tuple[UserRead, str],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, _, _ = appointment_creation_setup
+    _, service, _, _ = appointment_creation_setup
     block_starts_at, _ = calendar_block_setup
 
     appointment_starts_at = block_starts_at - timedelta(minutes=30)

@@ -1,5 +1,5 @@
 from collections.abc import Callable, Generator, Iterator
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 import pytest
@@ -14,8 +14,10 @@ from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentRead
 from app.business_settings.models import BusinessSettings
 from app.business_settings.schemas import BusinessSettingsRead
+from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.core.database import get_session
+from app.core.datetime import localize_business_datetime
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.main import app
 from app.services.schemas import ServiceRead
@@ -293,11 +295,20 @@ def create_appointment(
         starts_at: datetime,
         **overrides: Any,
     ) -> AppointmentRead:
+        business_settings = get_business_settings_or_409(session)
+
+        starts_at_utc = localize_business_datetime(
+            starts_at,
+            business_settings.timezone,
+        ).astimezone(UTC)
+
+        ends_at_utc = starts_at_utc + timedelta(minutes=service.duration_minutes)
+
         data = {
             "user_id": user_id,
             "service_id": service.id,
-            "starts_at": starts_at,
-            "ends_at": starts_at + timedelta(minutes=service.duration_minutes),
+            "starts_at": starts_at_utc,
+            "ends_at": ends_at_utc,
             "status": AppointmentStatusEnum.PENDING_CONFIRMATION,
             "agreed_price": service.price,
             "agreed_deposit": service.deposit_amount,

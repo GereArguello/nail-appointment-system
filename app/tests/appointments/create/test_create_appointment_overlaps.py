@@ -7,8 +7,10 @@ from sqlmodel import Session
 
 from app.appointments.models import Appointment
 from app.appointments.schemas import AppointmentRead
+from app.business_settings.schemas import BusinessSettingsRead
 from app.core.enums import AppointmentStatusEnum
 from app.services.schemas import ServiceRead
+from app.tests.helpers import as_local_naive
 from app.users.schemas import UserRead
 from app.working_hours.schemas import WorkingHourRead
 
@@ -25,10 +27,12 @@ from app.working_hours.schemas import WorkingHourRead
 def test_should_allow_overlapping_appointment_when_existing_status_does_not_block(
     session: Session,
     appointment_status: AppointmentStatusEnum,
-    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    appointment_overlap_setup: tuple[
+        BusinessSettingsRead, ServiceRead, AppointmentRead, str
+    ],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, appointment, token = appointment_overlap_setup
+    business_settings, service, appointment, token = appointment_overlap_setup
 
     db_appointment = session.get(Appointment, appointment.id)
 
@@ -39,9 +43,11 @@ def test_should_allow_overlapping_appointment_when_existing_status_does_not_bloc
     session.commit()
     session.refresh(db_appointment)
 
+    starts_at = as_local_naive(appointment.starts_at, business_settings.timezone)
+
     response = post_appointment(
         service_id=service.id,
-        starts_at=appointment.starts_at,
+        starts_at=starts_at,
         token=token,
     )
 
@@ -59,10 +65,12 @@ def test_should_allow_overlapping_appointment_when_existing_status_does_not_bloc
 def test_should_fail_if_existing_appointment_status_blocks(
     session: Session,
     appointment_status: AppointmentStatusEnum,
-    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    appointment_overlap_setup: tuple[
+        BusinessSettingsRead, ServiceRead, AppointmentRead, str
+    ],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, appointment, token = appointment_overlap_setup
+    business_settings, service, appointment, token = appointment_overlap_setup
 
     db_appointment = session.get(Appointment, appointment.id)
 
@@ -73,9 +81,11 @@ def test_should_fail_if_existing_appointment_status_blocks(
     session.commit()
     session.refresh(db_appointment)
 
+    starts_at = as_local_naive(appointment.starts_at, business_settings.timezone)
+
     response = post_appointment(
         service_id=service.id,
-        starts_at=appointment.starts_at,
+        starts_at=starts_at,
         token=token,
     )
 
@@ -84,12 +94,16 @@ def test_should_fail_if_existing_appointment_status_blocks(
 
 
 def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from_left(
-    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    appointment_overlap_setup: tuple[
+        BusinessSettingsRead, ServiceRead, AppointmentRead, str
+    ],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, appointment, token = appointment_overlap_setup
+    business_settings, service, appointment, token = appointment_overlap_setup
 
-    new_starts_at = appointment.starts_at - timedelta(minutes=30)
+    starts_at = as_local_naive(appointment.starts_at, business_settings.timezone)
+
+    new_starts_at = starts_at - timedelta(minutes=30)
 
     response = post_appointment(
         service_id=service.id,
@@ -102,12 +116,16 @@ def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from
 
 
 def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from_right(
-    appointment_overlap_setup: tuple[ServiceRead, AppointmentRead, str],
+    appointment_overlap_setup: tuple[
+        BusinessSettingsRead, ServiceRead, AppointmentRead, str
+    ],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, appointment, token = appointment_overlap_setup
+    business_settings, service, appointment, token = appointment_overlap_setup
 
-    new_starts_at = appointment.starts_at + timedelta(minutes=30)
+    starts_at = as_local_naive(appointment.starts_at, business_settings.timezone)
+
+    new_starts_at = starts_at + timedelta(minutes=30)
 
     response = post_appointment(
         service_id=service.id,
@@ -120,12 +138,14 @@ def test_should_fail_if_appointment_partially_overlaps_existing_appointment_from
 
 
 def test_should_fail_if_appointment_is_inside_existing_appointment(
-    appointment_overlap_context: tuple[WorkingHourRead, UserRead, str],
+    appointment_overlap_context: tuple[
+        BusinessSettingsRead, WorkingHourRead, UserRead, str
+    ],
     create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
     post_appointment: Callable[..., Response],
 ) -> None:
-    working_hour, user, token = appointment_overlap_context
+    _, working_hour, user, token = appointment_overlap_context
 
     existing_service = create_service(
         name="Servicio largo",
@@ -161,12 +181,14 @@ def test_should_fail_if_appointment_is_inside_existing_appointment(
 
 
 def test_should_fail_if_appointment_contains_existing_appointment(
-    appointment_overlap_context: tuple[WorkingHourRead, UserRead, str],
+    appointment_overlap_context: tuple[
+        BusinessSettingsRead, WorkingHourRead, UserRead, str
+    ],
     create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
     post_appointment: Callable[..., Response],
 ) -> None:
-    working_hour, user, token = appointment_overlap_context
+    _, working_hour, user, token = appointment_overlap_context
 
     existing_service = create_service(
         name="Servicio corto",
@@ -240,15 +262,17 @@ def test_should_allow_appointment_starting_when_existing_appointment_ends(
         start_offset_hours=1
     )
 
-    existing_appointment = create_appointment(
+    create_appointment(
         user_id=user.id,
         service=service,
         starts_at=existing_starts_at,
     )
 
+    new_starts_at = existing_starts_at + timedelta(minutes=service.duration_minutes)
+
     response = post_appointment(
         service_id=service.id,
-        starts_at=existing_appointment.ends_at,
+        starts_at=new_starts_at,
         token=token,
     )
 
@@ -256,12 +280,14 @@ def test_should_allow_appointment_starting_when_existing_appointment_ends(
 
 
 def test_should_fail_if_appointment_overlaps_existing_buffer_before(
-    appointment_overlap_context: tuple[WorkingHourRead, UserRead, str],
+    appointment_overlap_context: tuple[
+        BusinessSettingsRead, WorkingHourRead, UserRead, str
+    ],
     create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
     post_appointment: Callable[..., Response],
 ) -> None:
-    working_hour, user, token = appointment_overlap_context
+    _, working_hour, user, token = appointment_overlap_context
 
     service = create_service(
         name="Servicio con buffer previo",
@@ -293,12 +319,14 @@ def test_should_fail_if_appointment_overlaps_existing_buffer_before(
 
 
 def test_should_fail_if_appointment_overlaps_existing_buffer_after(
-    appointment_overlap_context: tuple[WorkingHourRead, UserRead, str],
+    appointment_overlap_context: tuple[
+        BusinessSettingsRead, WorkingHourRead, UserRead, str
+    ],
     create_service: Callable[..., ServiceRead],
     create_appointment: Callable[..., AppointmentRead],
     post_appointment: Callable[..., Response],
 ) -> None:
-    working_hour, user, token = appointment_overlap_context
+    business_settings, working_hour, user, token = appointment_overlap_context
 
     service = create_service(
         name="Servicio con buffer posterior",
@@ -317,7 +345,9 @@ def test_should_fail_if_appointment_overlaps_existing_buffer_after(
         starts_at=existing_starts_at,
     )
 
-    new_starts_at = existing_appointment.ends_at + timedelta(minutes=5)
+    new_starts_at = as_local_naive(
+        existing_appointment.ends_at, business_settings.timezone
+    ) + timedelta(minutes=5)
 
     response = post_appointment(
         service_id=service.id,

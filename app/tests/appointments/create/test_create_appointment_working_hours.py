@@ -3,17 +3,20 @@ from datetime import datetime, timedelta
 
 from fastapi import Response, status
 
+from app.business_settings.schemas import BusinessSettingsRead
 from app.services.schemas import ServiceRead
 from app.users.schemas import UserRead
 from app.working_hours.schemas import WorkingHourRead
 
 
 def test_should_fail_if_appointment_starts_before_working_hours(
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     user_with_login: tuple[UserRead, str],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, working_hour, _ = appointment_creation_setup
+    _, service, working_hour, _ = appointment_creation_setup
 
     starts_at = datetime.combine(
         working_hour.date,
@@ -36,11 +39,13 @@ def test_should_fail_if_appointment_starts_before_working_hours(
 
 
 def test_should_fail_if_appointment_ends_after_working_hours(
-    appointment_creation_setup: tuple[ServiceRead, WorkingHourRead, datetime],
+    appointment_creation_setup: tuple[
+        BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime
+    ],
     user_with_login: tuple[UserRead, str],
     post_appointment: Callable[..., Response],
 ) -> None:
-    service, working_hour, _ = appointment_creation_setup
+    _, service, working_hour, _ = appointment_creation_setup
 
     latest_valid_start = datetime.combine(
         working_hour.date,

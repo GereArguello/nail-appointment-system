@@ -77,12 +77,19 @@ def list_working_hours(
     """
     business_settings = get_business_settings_or_409(session)
 
-    start_date, end_date = resolve_date_range(
-        current_user=current_user,
+    start_date, end_date, today = resolve_date_range(
         from_date=from_date,
         to_date=to_date,
         timezone=business_settings.timezone,
     )
+
+    if start_date < today and (
+        current_user is None or current_user.role != RoleEnum.ADMIN
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden ver fechas pasadas",
+        )
 
     statement = (
         select(WorkingHour)

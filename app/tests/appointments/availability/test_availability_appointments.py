@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from datetime import UTC, datetime, time, timedelta
+from datetime import datetime, time, timedelta
 
 import pytest
 from fastapi import status
@@ -39,14 +39,15 @@ def test_should_exclude_slots_overlapping_appointment(
         buffer_after_minutes=0,
     )
 
-    (
-        create_appointment(
-            user_id=user.id,
-            service=service,
-            starts_at=datetime.combine(
-                working_hour.date, working_hour.start_time, tzinfo=UTC
+    create_appointment(
+        user_id=user.id,
+        service=service,
+        starts_at=(
+            datetime.combine(
+                working_hour.date,
+                working_hour.start_time,
             )
-            + timedelta(hours=1, minutes=30),
+            + timedelta(hours=1, minutes=30)
         ),
     )
 
@@ -61,9 +62,9 @@ def test_should_exclude_slots_overlapping_appointment(
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == [
-        f"{working_hour.date}T09:00:00Z",
-        f"{working_hour.date}T09:15:00Z",
-        f"{working_hour.date}T09:30:00Z",
+        f"{working_hour.date}T09:00:00",
+        f"{working_hour.date}T09:15:00",
+        f"{working_hour.date}T09:30:00",
     ]
 
 
@@ -108,7 +109,6 @@ def test_should_exclude_slots_overlapping_appointment_with_existing_service_buff
             datetime.combine(
                 working_hour.date,
                 working_hour.start_time,
-                tzinfo=UTC,
             )
             + timedelta(hours=1, minutes=30)
         ),
@@ -125,12 +125,12 @@ def test_should_exclude_slots_overlapping_appointment_with_existing_service_buff
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == [
-        f"{working_hour.date}T09:00:00Z",
-        f"{working_hour.date}T09:15:00Z",
-        f"{working_hour.date}T09:30:00Z",
-        f"{working_hour.date}T09:45:00Z",
-        f"{working_hour.date}T11:15:00Z",
-        f"{working_hour.date}T11:30:00Z",
+        f"{working_hour.date}T09:00:00",
+        f"{working_hour.date}T09:15:00",
+        f"{working_hour.date}T09:30:00",
+        f"{working_hour.date}T09:45:00",
+        f"{working_hour.date}T11:15:00",
+        f"{working_hour.date}T11:30:00",
     ]
 
 
@@ -176,7 +176,6 @@ def test_should_not_exclude_slots_for_non_occupying_appointment_status(
         starts_at=datetime.combine(
             working_hour.date,
             time(9, 15),
-            tzinfo=UTC,
         ),
         status=appointment_status,
     )
@@ -192,7 +191,7 @@ def test_should_not_exclude_slots_for_non_occupying_appointment_status(
     assert response.status_code == status.HTTP_200_OK
 
     assert response.json() == [
-        f"{working_hour.date}T09:00:00Z",
-        f"{working_hour.date}T09:15:00Z",
-        f"{working_hour.date}T09:30:00Z",
+        f"{working_hour.date}T09:00:00",
+        f"{working_hour.date}T09:15:00",
+        f"{working_hour.date}T09:30:00",
     ]

@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 from sqlmodel import Session, select
 
 from app.core.config import settings
+from app.core.datetime import as_utc
 from app.core.enums import TimezoneEnum
 from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourRead
@@ -104,3 +105,10 @@ def get_local_date(
     tz = ZoneInfo((timezone or settings.BUSINESS_TIMEZONE).value)
 
     return (datetime.now(tz) + timedelta(days=days_offset)).date().isoformat()
+
+
+def as_local_naive(
+    value: datetime,
+    timezone: TimezoneEnum,
+) -> datetime:
+    return as_utc(value).astimezone(ZoneInfo(timezone)).replace(tzinfo=None)

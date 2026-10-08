@@ -75,17 +75,24 @@ def list_calendar_blocks(
 ) -> list[CalendarBlockRead]:
     """Lista los bloqueos de calendario dentro del rango indicado.
 
-    Por defecto, consulta desde hoy hasta 31 días después.
+    Por defecto, consulta un período de 31 días a partir de hoy.
     Solo los administradores pueden consultar fechas pasadas.
     """
     business_settings = get_business_settings_or_409(session)
 
-    start_date, end_date = resolve_date_range(
-        current_user=current_user,
+    start_date, end_date, today = resolve_date_range(
         from_date=from_date,
         to_date=to_date,
         timezone=business_settings.timezone,
     )
+
+    if start_date < today and (
+        current_user is None or current_user.role != RoleEnum.ADMIN
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo administradores pueden ver fechas pasadas",
+        )
 
     start_datetime, end_datetime = date_range_as_datetime_utc(
         start_date, end_date, timezone=business_settings.timezone
@@ -95,7 +102,7 @@ def list_calendar_blocks(
         select(CalendarBlock)
         .where(
             CalendarBlock.starts_at >= start_datetime,
-            CalendarBlock.ends_at <= end_datetime,
+            CalendarBlock.starts_at < end_datetime,
         )
         .order_by(CalendarBlock.starts_at)
     )

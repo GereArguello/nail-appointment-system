@@ -4,34 +4,19 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException, status
 
 from app.core.datetime import get_today_in_timezone
-from app.core.enums import RoleEnum, TimezoneEnum
-from app.users.models import User
+from app.core.enums import TimezoneEnum
 
 
 def resolve_date_range(
     *,
-    current_user: User | None,
     from_date: date | None,
     to_date: date | None,
     timezone: TimezoneEnum,
-) -> tuple[date, date]:
-    """Resuelve y valida un rango de fechas para consultas.
-
-    Por defecto, la fecha final se establece 31 días después de la inicial.
-    Solo los administradores pueden consultar fechas pasadas.
-    """
+) -> tuple[date, date, date]:
     today = get_today_in_timezone(timezone)
 
-    is_admin = current_user is not None and current_user.role == RoleEnum.ADMIN
-
     start_date = from_date or today
-    end_date = to_date or start_date + timedelta(days=31)
-
-    if start_date < today and not is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo administradores pueden ver fechas pasadas",
-        )
+    end_date = to_date or start_date + timedelta(days=30)
 
     if end_date < start_date:
         raise HTTPException(
@@ -39,13 +24,13 @@ def resolve_date_range(
             detail="La fecha final no puede ser anterior a la inicial",
         )
 
-    if end_date - start_date > timedelta(days=31):
+    if end_date - start_date > timedelta(days=30):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El rango no puede superar los 31 días",
         )
 
-    return start_date, end_date
+    return start_date, end_date, today
 
 
 def date_range_as_datetime_utc(
