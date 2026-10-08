@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from sqlalchemy import DateTime
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.core.datetime import utc_now
@@ -25,10 +26,15 @@ class Service(SQLModel, table=True):  # type: ignore[call-arg]
 
     status: StatusEnum = Field(default=StatusEnum.ACTIVE)
 
-    created_at: datetime = Field(default_factory=utc_now)
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_type=DateTime(timezone=True),
+    )
 
     updated_at: datetime = Field(
-        default_factory=utc_now, sa_column_kwargs={"onupdate": utc_now}
+        default_factory=utc_now,
+        sa_type=DateTime(timezone=True),
+        sa_column_kwargs={"onupdate": utc_now},
     )
 
     appointments: list["Appointment"] = Relationship(back_populates="service")

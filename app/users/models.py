@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String
+from sqlalchemy import DateTime, String
 from sqlmodel import Column, Field, Relationship, SQLModel
 
 from app.core.datetime import utc_now
@@ -36,12 +36,21 @@ class User(UserBase, table=True):  # type: ignore[call-arg]
     status: StatusEnum = Field(default=StatusEnum.ACTIVE)
 
     email_verified: bool = Field(default=False)
-    email_verified_at: datetime | None = Field(default=None)
 
-    created_at: datetime = Field(default_factory=utc_now)
+    email_verified_at: datetime | None = Field(
+        default=None,
+        sa_type=DateTime(timezone=True),
+    )
+
+    created_at: datetime = Field(
+        default_factory=utc_now,
+        sa_type=DateTime(timezone=True),
+    )
 
     updated_at: datetime = Field(
-        default_factory=utc_now, sa_column_kwargs={"onupdate": utc_now}
+        default_factory=utc_now,
+        sa_type=DateTime(timezone=True),
+        sa_column_kwargs={"onupdate": utc_now},
     )
 
     appointments: list["Appointment"] = Relationship(back_populates="user")
