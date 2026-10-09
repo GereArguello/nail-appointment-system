@@ -40,7 +40,7 @@ def test_should_exclude_slots_overlapping_calendar_block(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )
@@ -88,7 +88,7 @@ def test_should_exclude_slots_overlapping_calendar_block_with_service_buffers(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )

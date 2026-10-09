@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import select
@@ -114,7 +115,7 @@ def create_appointment(
 
 @router.get("/availability")
 def get_availability(
-    date: date, service_id: int, session: SessionDep
+    target_date: date, service_id: int, session: SessionDep
 ) -> list[datetime]:
     """Obtiene los horarios disponibles para reservar un servicio en una fecha.
 
@@ -131,14 +132,16 @@ def get_availability(
     no existe o no está disponible.
 
     Lanza 409 si el servicio no puede entrar dentro del rango laboral disponible."""
-    working_hour = get_working_hour_by_date(session, date)
-    calendar_blocks = get_calendar_blocks_by_date(session, date)
-    appointments = get_appointments_by_date(session, date)
+    working_hour = get_working_hour_by_date(session, target_date)
+    calendar_blocks = get_calendar_blocks_by_date(session, target_date)
+    appointments = get_appointments_by_date(session, target_date)
     service = get_service_or_404(service_id, session)
     business_settings = get_business_settings_or_409(session)
 
     first_possible_starts_at, last_possible_starts_at = (
-        calculate_first_and_last_possible_start(session, working_hour, service)
+        calculate_first_and_last_possible_start(
+            working_hour, service, business_settings
+        )
     )
 
     slots: list[datetime] = []
@@ -146,7 +149,15 @@ def get_availability(
     appoint = first_possible_starts_at
     step = timedelta(minutes=business_settings.slot_interval_minutes)
 
+    now_local = utc_now().astimezone(ZoneInfo(business_settings.timezone))
+
+    is_today = target_date == now_local.date()
+
     while appoint <= last_possible_starts_at:
+        if is_today and appoint <= now_local:
+            appoint += step
+            continue
+
         start_time, end_time = calculate_appointment_time_range(appoint, service)
 
         if not has_appointment_overlap(

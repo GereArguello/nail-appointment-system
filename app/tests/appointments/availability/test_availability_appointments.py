@@ -54,7 +54,7 @@ def test_should_exclude_slots_overlapping_appointment(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )
@@ -117,7 +117,7 @@ def test_should_exclude_slots_overlapping_appointment_with_existing_service_buff
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": requested_service.id,
         },
     )
@@ -183,7 +183,7 @@ def test_should_not_exclude_slots_for_non_occupying_appointment_status(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )

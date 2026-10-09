@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, col, select
 
 from app.appointments.models import Appointment
+from app.business_settings.schemas import BusinessSettingsRead
 from app.business_settings.service import get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.core.date_ranges import date_range_as_datetime_utc
@@ -55,6 +56,13 @@ def validate_not_in_past(
     starts_at: datetime,
     session: Session,
 ) -> None:
+    """Valida que el inicio de una cita no haya ocurrido.
+
+    Interpreta starts_at en la zona horaria del negocio y lo compara
+    con el instante actual en UTC.
+
+    Lanza 422 si la fecha y hora de inicio no son futuras.
+    """
     business_settings = get_business_settings_or_409(session)
 
     starts_at_utc = localize_business_datetime(
@@ -185,6 +193,13 @@ def localize_appointment_range_to_utc(
     starts_at: datetime,
     ends_at: datetime,
 ) -> tuple[datetime, datetime]:
+    """Convierte un rango de cita desde la zona del negocio a UTC.
+
+    Los datetimes naive se interpretan como horarios locales del negocio.
+    Los datetimes aware se convierten preservando el instante que representan.
+
+    Devuelve el inicio y fin del rango como datetimes aware en UTC.
+    """
     business_settings = get_business_settings_or_409(session)
 
     starts_at_local = localize_business_datetime(
@@ -335,7 +350,7 @@ def get_appointments_by_date(
 
 
 def calculate_first_and_last_possible_start(
-    session: Session, working_hour: WorkingHour, service: Service
+    working_hour: WorkingHour, service: Service, business_settings: BusinessSettingsRead
 ) -> tuple[datetime, datetime]:
     """Calcula el primer y último inicio posible para un servicio.
 
@@ -344,8 +359,6 @@ def calculate_first_and_last_possible_start(
 
     Lanza 409 si el servicio no puede entrar dentro del rango disponible.
     """
-    business_settings = get_business_settings_or_409(session)
-
     timezone = ZoneInfo(business_settings.timezone)
 
     working_start = datetime.combine(

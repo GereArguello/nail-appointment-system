@@ -36,9 +36,7 @@ def test_should_calculate_first_and_last_possible_start(
     )
 
     first, last = calculate_first_and_last_possible_start(
-        session,
-        working_hour,
-        service,
+        working_hour, service, business_settings
     )
 
     timezone = ZoneInfo(business_settings.timezone)
@@ -60,7 +58,7 @@ def test_should_return_404_if_date_has_no_working_hour(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": "2026-09-21",
+            "target_date": "2026-09-21",
             "service_id": service.id,
         },
     )
@@ -78,7 +76,7 @@ def test_should_return_404_if_service_not_exists(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": 999,
         },
     )
@@ -108,7 +106,7 @@ def test_should_return_409_if_service_does_not_fit_working_hours(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )
@@ -145,7 +143,7 @@ def test_should_return_all_available_slots_when_day_is_empty(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )
@@ -190,7 +188,7 @@ def test_should_return_empty_list_if_no_slots_are_available(
     response = client.get(
         "/appointments/availability",
         params={
-            "date": working_hour.date,
+            "target_date": working_hour.date,
             "service_id": service.id,
         },
     )

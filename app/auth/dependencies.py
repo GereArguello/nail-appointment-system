@@ -22,6 +22,13 @@ credentials_exception = HTTPException(
 
 
 def authenticate_user(token: str, session: Session) -> User:
+    """Autentica un usuario a partir de un token de acceso.
+
+    Valida que el token sea de acceso, que contenga un identificador
+    de usuario válido y que el usuario exista y permanezca activo.
+
+    Lanza 401 si las credenciales no son válidas.
+    """
     payload = decode_token(token)
 
     if payload.get("type") != "access":
