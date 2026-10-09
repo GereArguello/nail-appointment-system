@@ -1,9 +1,8 @@
-from datetime import UTC, datetime
+from datetime import datetime
 
 from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
-from app.core.datetime import as_utc
 from app.core.enums import AppointmentStatusEnum
 
 
@@ -15,8 +14,8 @@ class AppointmentCreate(SQLModel):
     @field_validator("starts_at")
     @classmethod
     def validate_starts_at(cls, value: datetime) -> datetime:
-        if as_utc(value) < datetime.now(UTC):
-            raise ValueError("La fecha de la cita no puede estar en el pasado")
+        if value.tzinfo is not None:
+            raise ValueError("starts_at debe enviarse sin zona horaria")
 
         return value
 

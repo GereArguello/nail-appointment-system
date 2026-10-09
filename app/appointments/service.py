@@ -51,6 +51,24 @@ def calculate_appointment_time_range(
     return start_time, end_time
 
 
+def validate_not_in_past(
+    starts_at: datetime,
+    session: Session,
+) -> None:
+    business_settings = get_business_settings_or_409(session)
+
+    starts_at_utc = localize_business_datetime(
+        starts_at,
+        business_settings.timezone,
+    ).astimezone(UTC)
+
+    if starts_at_utc <= utc_now():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La fecha de la cita no puede estar en el pasado",
+        )
+
+
 def validate_within_working_hours(
     start_time: datetime, end_time: datetime, session: Session
 ) -> None:

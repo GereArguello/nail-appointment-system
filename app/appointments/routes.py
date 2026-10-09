@@ -20,6 +20,7 @@ from app.appointments.service import (
     validate_cancellation_deadline,
     validate_no_appointment_overlap,
     validate_no_calendar_block_overlap,
+    validate_not_in_past,
     validate_within_working_hours,
 )
 from app.auth.dependencies import get_current_admin, get_current_user
@@ -51,6 +52,8 @@ def create_appointment(
     """
 
     service = get_service_or_404(appointment_data.service_id, session)
+
+    validate_not_in_past(appointment_data.starts_at, session)
 
     occupied_start, occupied_end = calculate_appointment_time_range(
         appointment_data.starts_at, service

@@ -154,8 +154,7 @@ def test_should_fail_if_starts_at_is_in_the_past(
 
     assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
     assert (
-        response.json()["detail"][0]["msg"]
-        == "Value error, La fecha de la cita no puede estar en el pasado"
+        response.json()["detail"] == "La fecha de la cita no puede estar en el pasado"
     )
 
 
