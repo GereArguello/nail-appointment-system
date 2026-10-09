@@ -14,39 +14,38 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    session: Session = Depends(get_session),
-) -> User:
-    """Obtiene el usuario autenticado a partir de un token de acceso válido.
+credentials_exception = HTTPException(
+    status_code=status.HTTP_401_UNAUTHORIZED,
+    detail="Credenciales inválidas",
+    headers={"WWW-Authenticate": "Bearer"},
+)
 
-    Rechaza tokens inválidos y usuarios inexistentes o inactivos.
-    """
+
+def authenticate_user(token: str, session: Session) -> User:
     payload = decode_token(token)
 
     if payload.get("type") != "access":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido",
-        )
+        raise credentials_exception
 
     try:
         user_id = int(payload["sub"])
     except (KeyError, TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token inválido",
-        ) from None
+        raise credentials_exception from None
 
     user = cast(User | None, session.get(User, user_id))
 
     if user is None or user.status == StatusEnum.INACTIVE:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales inválidas",
-        )
+        raise credentials_exception
 
     return user
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    session: Session = Depends(get_session),
+) -> User:
+    """Obtiene el usuario autenticado a partir de un token de acceso válido."""
+    return authenticate_user(token, session)
 
 
 def get_current_admin(
@@ -68,20 +67,10 @@ def get_current_user_optional(
 ) -> User | None:
     """Obtiene el usuario autenticado cuando hay credenciales disponibles.
 
-    Retorna None si no se proporciona un token o el usuario no puede
-    ser autenticado.
+    Retorna None si no se proporciona un token.
+    Lanza 401 si se proporcionan credenciales inválidas.
     """
-    if not token:
+    if token is None:
         return None
 
-    payload = decode_token(token)
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
-
-    user = cast(User | None, session.get(User, int(user_id)))
-
-    if not user or user.status == StatusEnum.INACTIVE:
-        return None
-
-    return user
+    return authenticate_user(token, session)
