@@ -98,17 +98,26 @@ def validate_within_working_hours(
         - timedelta(minutes=business_settings.appointment_end_tolerance_minutes)
     ).time()
 
-    query = select(WorkingHour).where(
-        (WorkingHour.date == start_time.date())
-        & (WorkingHour.start_time <= adjusted_start_time)
-        & (WorkingHour.end_time >= adjusted_end_time)
+    query = (
+        select(WorkingHour)
+        .where(WorkingHour.date == start_time.date())
+        .with_for_update()
     )
 
     working_hour = session.exec(query).first()
 
     if working_hour is None:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
+            status_code=404,
+            detail="No existe horario laboral para ese día",
+        )
+
+    if not (
+        working_hour.start_time <= adjusted_start_time
+        and working_hour.end_time >= adjusted_end_time
+    ):
+        raise HTTPException(
+            status_code=409,
             detail="La cita solicitada está fuera del horario disponible",
         )
 

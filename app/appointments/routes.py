@@ -60,52 +60,60 @@ def create_appointment(
         appointment_data.starts_at, service
     )
 
-    validate_within_working_hours(occupied_start, occupied_end, session)
+    try:
+        validate_within_working_hours(occupied_start, occupied_end, session)
 
-    occupied_start_utc, occupied_end_utc = convert_business_range_to_utc(
-        session,
-        occupied_start,
-        occupied_end,
-    )
+        occupied_start_utc, occupied_end_utc = convert_business_range_to_utc(
+            session,
+            occupied_start,
+            occupied_end,
+        )
 
-    validate_no_calendar_block_overlap(occupied_start_utc, occupied_end_utc, session)
+        validate_no_calendar_block_overlap(
+            occupied_start_utc, occupied_end_utc, session
+        )
 
-    validate_no_appointment_overlap(occupied_start_utc, occupied_end_utc, session)
+        validate_no_appointment_overlap(occupied_start_utc, occupied_end_utc, session)
 
-    appointment_ends_local = appointment_data.starts_at + timedelta(
-        minutes=service.duration_minutes
-    )
+        appointment_ends_local = appointment_data.starts_at + timedelta(
+            minutes=service.duration_minutes
+        )
 
-    appointment_start_utc, appointment_end_utc = convert_business_range_to_utc(
-        session,
-        appointment_data.starts_at,
-        appointment_ends_local,
-    )
+        appointment_start_utc, appointment_end_utc = convert_business_range_to_utc(
+            session,
+            appointment_data.starts_at,
+            appointment_ends_local,
+        )
 
-    agreed_price, agreed_deposit, payment_expires_at = (
-        resolve_appointment_payment_terms(service, session)
-    )
+        agreed_price, agreed_deposit, payment_expires_at = (
+            resolve_appointment_payment_terms(service, session)
+        )
 
-    appointment_status = (
-        AppointmentStatusEnum.PENDING_CONFIRMATION
-        if payment_expires_at is None
-        else AppointmentStatusEnum.PENDING_PAYMENT
-    )
+        appointment_status = (
+            AppointmentStatusEnum.PENDING_CONFIRMATION
+            if payment_expires_at is None
+            else AppointmentStatusEnum.PENDING_PAYMENT
+        )
 
-    appointment = Appointment(
-        user_id=current_user.id,
-        service_id=appointment_data.service_id,
-        starts_at=appointment_start_utc,
-        ends_at=appointment_end_utc,
-        status=appointment_status,
-        agreed_price=agreed_price,
-        agreed_deposit=agreed_deposit,
-        payment_expires_at=payment_expires_at,
-        description=appointment_data.description,
-    )
+        appointment = Appointment(
+            user_id=current_user.id,
+            service_id=appointment_data.service_id,
+            starts_at=appointment_start_utc,
+            ends_at=appointment_end_utc,
+            status=appointment_status,
+            agreed_price=agreed_price,
+            agreed_deposit=agreed_deposit,
+            payment_expires_at=payment_expires_at,
+            description=appointment_data.description,
+        )
 
-    session.add(appointment)
-    session.commit()
+        session.add(appointment)
+        session.commit()
+
+    except Exception:
+        session.rollback()
+        raise
+
     session.refresh(appointment)
 
     appointment_read: AppointmentRead = AppointmentRead.model_validate(appointment)

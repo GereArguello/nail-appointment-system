@@ -199,8 +199,10 @@ def test_should_use_business_timezone_when_validating_working_hour_date(
     )
 
     monkeypatch.setattr(
-        "app.working_hours.routes.get_now_in_timezone",
-        lambda timezone: fixed_utc.astimezone(ZoneInfo(timezone.value)),
+        "app.working_hours.service.get_business_now",
+        lambda session: fixed_utc.astimezone(
+            ZoneInfo("America/Argentina/Buenos_Aires")
+        ),
     )
 
     response = client.post(

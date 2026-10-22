@@ -18,8 +18,8 @@ class Appointment(SQLModel, table=True):  # type: ignore[call-arg]
     user_id: int = Field(sa_column=Column(ForeignKey("user.id"), nullable=False))
     service_id: int = Field(sa_column=Column(ForeignKey("service.id"), nullable=False))
 
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: datetime = Field(sa_type=DateTime(timezone=True))
+    ends_at: datetime = Field(sa_type=DateTime(timezone=True))
 
     status: AppointmentStatusEnum
 

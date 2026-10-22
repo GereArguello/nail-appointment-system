@@ -2,8 +2,6 @@ from collections.abc import Callable
 from datetime import datetime, time, timedelta
 
 import pytest
-from fastapi import Response
-from fastapi.testclient import TestClient
 
 from app.appointments.schemas import AppointmentRead
 from app.business_settings.schemas import BusinessSettingsRead
@@ -56,51 +54,6 @@ def appointments(
         )
         for i in range(5)
     ]
-
-
-@pytest.fixture
-def appointment_creation_setup(
-    create_business_settings: Callable[..., BusinessSettingsRead],
-    create_service: Callable[..., ServiceRead],
-    create_working_hours: Callable[..., WorkingHourRead],
-) -> tuple[BusinessSettingsRead, ServiceRead, WorkingHourRead, datetime]:
-    business_settings = create_business_settings()
-    service = create_service()
-    working_hour = create_working_hours()
-
-    starts_at = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-    )
-
-    return business_settings, service, working_hour, starts_at
-
-
-@pytest.fixture
-def post_appointment(
-    client: TestClient,
-) -> Callable[..., Response]:
-    def _post_appointment(
-        service_id: int,
-        starts_at: datetime,
-        token: str,
-        description: str | None = "  Diseño francés con detalles dorados  ",
-    ) -> Response:
-        data = {
-            "service_id": service_id,
-            "starts_at": starts_at.isoformat(),
-        }
-
-        if description is not None:
-            data["description"] = description
-
-        return client.post(
-            "/appointments/",
-            json=data,
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
-    return _post_appointment
 
 
 @pytest.fixture
