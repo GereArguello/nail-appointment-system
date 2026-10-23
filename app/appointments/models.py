@@ -25,7 +25,7 @@ class Appointment(SQLModel, table=True):  # type: ignore[call-arg]
 
     agreed_price: int = Field(ge=0)
     agreed_deposit: int = Field(default=0, ge=0)
-    payment_expires_at: datetime | None = None
+    payment_expires_at: datetime = Field(sa_type=DateTime(timezone=True), nullable=True)
 
     description: str | None = Field(default=None, max_length=500)
 
