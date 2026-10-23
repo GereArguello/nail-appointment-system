@@ -3,6 +3,7 @@ name = "manicura"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi[standard]",
     "psycopg[binary]",
     "pwdlib[argon2]",
