@@ -1,0 +1,71 @@
+.hero {
+  padding: 90px 24px;
+  background: linear-gradient(
+    135deg,
+    #fff7f5 0%,
+    #f8e7e9 100%
+  );
+  text-align: center;
+}
+
+.hero-content {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.hero-eyebrow {
+  display: block;
+  margin-bottom: 16px;
+  color: #a94e71;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+.hero h1 {
+  margin: 0 0 20px;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  line-height: 1.2;
+  color: #382b31;
+}
+
+.hero p {
+  max-width: 550px;
+  margin: 0 auto 32px;
+  color: #73656a;
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+
+.booking-button {
+  padding: 15px 36px;
+  border: none;
+  border-radius: 10px;
+  background: #a94e71;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 18px #a94e7133;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.booking-button:hover {
+  background: #8d3c5a;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 600px) {
+  .hero {
+    padding: 64px 20px;
+  }
+
+  .hero p {
+    font-size: 1rem;
+  }
+
+  .booking-button {
+    width: 100%;
+    max-width: 320px;
+  }
+}
