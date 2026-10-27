@@ -11,11 +11,11 @@ const business = {
 };
 
 const images = [
-  { id: 1, serviceId: 1, url: "/public/images/nails-1.jpg" },
-  { id: 2, serviceId: 1, url: "/public/images/nails-2.jpg" },
-  { id: 3, serviceId: 2, url: "/public/images/nails-3.jpg" },
-  { id: 4, serviceId: 2, url: "/public/images/nails-4.jpg" },
-  { id: 5, serviceId: 3, url: "/public/images/nails-5.jpg" },
+  { id: 1, serviceId: 1, url: "/images/nails-1.jpg" },
+  { id: 2, serviceId: 1, url: "/images/nails-2.jpg" },
+  { id: 3, serviceId: 2, url: "/images/nails-3.jpg" },
+  { id: 4, serviceId: 2, url: "/images/nails-4.jpg" },
+  { id: 5, serviceId: 3, url: "/images/nails-5.jpg" },
 ];
 
 const coverImages = images.filter(
