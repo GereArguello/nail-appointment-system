@@ -1,13 +1,46 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
+from app.business_settings.models import BusinessSettings
 from app.business_settings.service import get_business_now, get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockCreate
+from app.core.date_ranges import date_range_as_datetime_utc
 from app.core.datetime import localize_business_datetime
 from app.working_hours.models import WorkingHour
+
+
+def get_calendar_blocks_by_range(
+    session: Session,
+    start_date: date,
+    end_date: date,
+    business_settings: BusinessSettings,
+) -> list[CalendarBlock]:
+    """Obtiene los bloqueos de calendario cuyo inicio pertenece a un rango de fechas.
+
+    Convierte los límites del rango a UTC según la zona horaria del negocio
+    y recupera los bloqueos que comienzan dentro de él.
+
+    Devuelve una lista de bloqueos ordenados por fecha y hora de inicio.
+    """
+    start_datetime, end_datetime = date_range_as_datetime_utc(
+        start_date,
+        end_date,
+        timezone=business_settings.timezone,
+    )
+
+    statement = (
+        select(CalendarBlock)
+        .where(
+            CalendarBlock.starts_at >= start_datetime,
+            CalendarBlock.starts_at < end_datetime,
+        )
+        .order_by(CalendarBlock.starts_at)
+    )
+
+    return list(session.exec(statement).all())
 
 
 def get_overlapping_block(

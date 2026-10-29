@@ -16,6 +16,7 @@ from app.working_hours.models import WorkingHour
 from app.working_hours.schemas import WorkingHourCreate, WorkingHourRead
 from app.working_hours.service import (
     get_business_now,
+    get_working_hours_by_range,
     validate_working_hour_date,
 )
 
@@ -91,16 +92,11 @@ def list_working_hours(
             detail="Solo administradores pueden ver fechas pasadas",
         )
 
-    statement = (
-        select(WorkingHour)
-        .where(
-            WorkingHour.date >= start_date,
-            WorkingHour.date <= end_date,
-        )
-        .order_by(WorkingHour.date)
+    working_hours: list[WorkingHourRead] = get_working_hours_by_range(
+        session, start_date, end_date
     )
 
-    return list(session.exec(statement).all())
+    return working_hours
 
 
 @router.get(

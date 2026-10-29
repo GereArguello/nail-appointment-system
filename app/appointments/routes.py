@@ -1,23 +1,25 @@
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import select
 
-from app.appointments.helper import convert_business_range_to_utc
+from app.appointments.helper import convert_business_range_to_utc, iter_available_slots
 from app.appointments.models import Appointment
-from app.appointments.schemas import AppointmentCreate, AppointmentRead
+from app.appointments.schemas import (
+    AppointmentCreate,
+    AppointmentRead,
+    CalendarAvailabilityRead,
+)
 from app.appointments.service import (
     calculate_appointment_time_range,
-    calculate_first_and_last_possible_start,
+    calculate_calendar_availability,
     get_appointment_or_404,
     get_appointments_by_date,
+    get_appointments_by_range,
     get_business_settings_or_409,
     get_calendar_blocks_by_date,
     get_working_hour_by_date,
-    has_appointment_overlap,
-    has_calendar_block_overlap,
     resolve_appointment_payment_terms,
+    validate_calendar_availability_range,
     validate_cancellation_deadline,
     validate_no_appointment_overlap,
     validate_no_calendar_block_overlap,
@@ -26,7 +28,7 @@ from app.appointments.service import (
 )
 from app.auth.dependencies import get_current_admin, get_current_user
 from app.core.database import SessionDep
-from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
+from app.core.date_ranges import resolve_date_range
 from app.core.datetime import as_utc, utc_now
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.service import get_service_or_404
@@ -146,36 +148,56 @@ def get_availability(
     service = get_service_or_404(service_id, session)
     business_settings = get_business_settings_or_409(session)
 
-    first_possible_starts_at, last_possible_starts_at = (
-        calculate_first_and_last_possible_start(
-            working_hour, service, business_settings
+    slots = list(
+        iter_available_slots(
+            working_hour,
+            service,
+            business_settings,
+            appointments,
+            calendar_blocks,
+            target_date,
         )
     )
 
-    slots: list[datetime] = []
-
-    appoint = first_possible_starts_at
-    step = timedelta(minutes=business_settings.slot_interval_minutes)
-
-    now_local = utc_now().astimezone(ZoneInfo(business_settings.timezone))
-
-    is_today = target_date == now_local.date()
-
-    while appoint <= last_possible_starts_at:
-        if is_today and appoint <= now_local:
-            appoint += step
-            continue
-
-        start_time, end_time = calculate_appointment_time_range(appoint, service)
-
-        if not has_appointment_overlap(
-            start_time, end_time, appointments
-        ) and not has_calendar_block_overlap(start_time, end_time, calendar_blocks):
-            slots.append(appoint.replace(tzinfo=None))
-
-        appoint += step
-
     return slots
+
+
+@router.get("/availability/calendar")
+def get_availability_calendar(
+    from_date: date,
+    to_date: date,
+    service_id: int,
+    session: SessionDep,
+) -> list[CalendarAvailabilityRead]:
+    """Consulta la disponibilidad diaria de un servicio en un rango de fechas.
+
+    Devuelve una lista de fechas indicando si existe al menos un horario
+    disponible para reservar el servicio solicitado.
+
+    Considera los horarios laborales, bloqueos de calendario, citas
+    existentes, duración del servicio, buffers y tolerancias del negocio.
+
+    El rango debe comenzar desde la fecha actual del negocio, mantener
+    un orden válido y abarcar como máximo 31 días inclusive.
+
+    Un día sin horario laboral, sin slots disponibles o cuyo horario
+    no permita realizar el servicio se devuelve con available=False.
+
+    Lanza 404 si el servicio solicitado no existe o no está disponible.
+    Lanza 422 si el rango de fechas es inválido.
+    """
+    validate_calendar_availability_range(
+        session,
+        from_date,
+        to_date,
+    )
+
+    return calculate_calendar_availability(
+        session,
+        service_id,
+        from_date,
+        to_date,
+    )
 
 
 @router.get(
@@ -256,27 +278,23 @@ def list_appointments(
     """
     business_settings = get_business_settings_or_409(session)
 
-    if current_user.role == RoleEnum.ADMIN:
-        statement = select(Appointment)
-    else:
-        statement = select(Appointment).where(Appointment.user_id == current_user.id)
-
     start_date, end_date, _ = resolve_date_range(
         from_date=from_date,
         to_date=to_date,
         timezone=business_settings.timezone,
     )
 
-    start_datetime, end_datetime = date_range_as_datetime_utc(
-        start_date, end_date, timezone=business_settings.timezone
+    user_id = None if current_user.role == RoleEnum.ADMIN else current_user.id
+
+    appointments = get_appointments_by_range(
+        session,
+        start_date,
+        end_date,
+        business_settings,
+        user_id=user_id,
     )
 
-    statement = statement.where(
-        Appointment.starts_at >= start_datetime,
-        Appointment.starts_at < end_datetime,
-    )
-
-    return list(session.exec(statement).all())
+    return [AppointmentRead.model_validate(appointment) for appointment in appointments]
 
 
 @router.patch(

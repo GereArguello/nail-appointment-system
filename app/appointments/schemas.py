@@ -1,6 +1,7 @@
+from datetime import date as Date
 from datetime import datetime
 
-from pydantic import field_validator
+from pydantic import BaseModel, field_validator
 from sqlmodel import Field, SQLModel
 
 from app.core.enums import AppointmentStatusEnum
@@ -45,3 +46,8 @@ class AppointmentRead(SQLModel):
 
     created_at: datetime
     updated_at: datetime
+
+
+class CalendarAvailabilityRead(BaseModel):
+    date: Date
+    available: bool

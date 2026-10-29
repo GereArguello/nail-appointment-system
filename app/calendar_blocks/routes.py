@@ -11,11 +11,12 @@ from app.business_settings.service import (
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.schemas import CalendarBlockCreate, CalendarBlockRead
 from app.calendar_blocks.service import (
+    get_calendar_blocks_by_range,
     localize_calendar_block_range,
     validate_calendar_block_creation,
 )
 from app.core.database import SessionDep
-from app.core.date_ranges import date_range_as_datetime_utc, resolve_date_range
+from app.core.date_ranges import resolve_date_range
 from app.core.datetime import as_utc, utc_now
 from app.core.enums import RoleEnum
 from app.users.models import User
@@ -94,20 +95,11 @@ def list_calendar_blocks(
             detail="Solo administradores pueden ver fechas pasadas",
         )
 
-    start_datetime, end_datetime = date_range_as_datetime_utc(
-        start_date, end_date, timezone=business_settings.timezone
+    calendar_blocks: list[CalendarBlockRead] = get_calendar_blocks_by_range(
+        session, start_date, end_date, business_settings
     )
 
-    query = (
-        select(CalendarBlock)
-        .where(
-            CalendarBlock.starts_at >= start_datetime,
-            CalendarBlock.starts_at < end_datetime,
-        )
-        .order_by(CalendarBlock.starts_at)
-    )
-
-    return list(session.exec(query).all())
+    return calendar_blocks
 
 
 @router.get(

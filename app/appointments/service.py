@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from typing import cast
 from zoneinfo import ZoneInfo
@@ -5,16 +6,22 @@ from zoneinfo import ZoneInfo
 from fastapi import HTTPException, status
 from sqlmodel import Session, col, select
 
+from app.appointments.helper import iter_available_slots
 from app.appointments.models import Appointment
+from app.appointments.schemas import CalendarAvailabilityRead
+from app.business_settings.models import BusinessSettings
 from app.business_settings.schemas import BusinessSettingsRead
-from app.business_settings.service import get_business_settings_or_409
+from app.business_settings.service import get_business_now, get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
+from app.calendar_blocks.service import get_calendar_blocks_by_range
 from app.core.date_ranges import date_range_as_datetime_utc
 from app.core.datetime import as_utc, localize_business_datetime, utc_now
 from app.core.enums import AppointmentStatusEnum, RoleEnum
 from app.services.models import Service
+from app.services.service import get_service_or_404
 from app.users.models import User
 from app.working_hours.models import WorkingHour
+from app.working_hours.service import get_working_hours_by_range
 
 
 def get_appointment_or_404(appointment_id: int, session: Session) -> Appointment:
@@ -358,6 +365,86 @@ def get_appointments_by_date(
     return list(results)
 
 
+def get_appointments_by_range(
+    session: Session,
+    start_date: date,
+    end_date: date,
+    business_settings: BusinessSettings,
+    user_id: int | None = None,
+) -> list[Appointment]:
+    """Obtiene las citas cuyo inicio pertenece a un rango de fechas.
+
+    Convierte los límites del rango a UTC según la zona horaria del negocio
+    y recupera las citas que comienzan dentro de él.
+
+    Permite filtrar por usuario cuando se proporciona su identificador.
+    Si no se especifica, recupera las citas de todos los usuarios,
+    independientemente de su estado.
+
+    Devuelve una lista de citas ordenadas por fecha y hora de inicio.
+    """
+    start_datetime, end_datetime = date_range_as_datetime_utc(
+        start_date,
+        end_date,
+        timezone=business_settings.timezone,
+    )
+
+    statement = select(Appointment).where(
+        Appointment.starts_at >= start_datetime,
+        Appointment.starts_at < end_datetime,
+    )
+
+    if user_id is not None:
+        statement = statement.where(Appointment.user_id == user_id)
+
+    statement = statement.order_by(Appointment.starts_at)
+
+    return list(session.exec(statement).all())
+
+
+def get_occupying_appointments_by_range(
+    session: Session,
+    start_date: date,
+    end_date: date,
+    business_settings: BusinessSettings,
+) -> list[tuple[Appointment, Service]]:
+    """Obtiene las citas que ocupan disponibilidad en un rango de fechas.
+
+    Convierte los límites del rango a UTC según la zona horaria del negocio
+    y recupera las citas cuyos intervalos se superponen con él.
+
+    Considera únicamente las citas confirmadas, pendientes de confirmación
+    o pendientes de pago, excluyendo los estados que no ocupan disponibilidad.
+
+    Devuelve una lista de tuplas con cada cita y su servicio asociado,
+    ordenadas por fecha y hora de inicio.
+    """
+    start_datetime, end_datetime = date_range_as_datetime_utc(
+        start_date,
+        end_date,
+        timezone=business_settings.timezone,
+    )
+
+    OCCUPYING_STATUSES = (
+        AppointmentStatusEnum.CONFIRMED,
+        AppointmentStatusEnum.PENDING_CONFIRMATION,
+        AppointmentStatusEnum.PENDING_PAYMENT,
+    )
+
+    statement = (
+        select(Appointment, Service)
+        .join(Service, Appointment.service_id == Service.id)
+        .where(
+            Appointment.starts_at < end_datetime,
+            Appointment.ends_at > start_datetime,
+            col(Appointment.status).in_(OCCUPYING_STATUSES),
+        )
+        .order_by(Appointment.starts_at)
+    )
+
+    return list(session.exec(statement).all())
+
+
 def calculate_first_and_last_possible_start(
     working_hour: WorkingHour, service: Service, business_settings: BusinessSettingsRead
 ) -> tuple[datetime, datetime]:
@@ -449,3 +536,150 @@ def has_appointment_overlap(
             return True
 
     return False
+
+
+def validate_calendar_availability_range(
+    session: Session,
+    from_date: date,
+    to_date: date,
+) -> None:
+    """Valida el rango de fechas solicitado para consultar disponibilidad.
+
+    Comprueba que la fecha inicial no sea anterior al día actual del negocio,
+    que la fecha final no preceda a la inicial y que el rango no supere
+    los 31 días inclusive.
+
+    Utiliza la zona horaria configurada del negocio para determinar
+    la fecha actual.
+
+    Lanza 422 si alguna de las condiciones no se cumple.
+    """
+    business_now = get_business_now(session)
+    today = business_now.date()
+
+    if from_date < today:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La fecha inicial no puede estar en el pasado",
+        )
+
+    if to_date < from_date:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="La fecha final no puede ser anterior a la inicial",
+        )
+
+    if (to_date - from_date).days > 30:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="El rango no puede superar los 31 días",
+        )
+
+
+def calculate_calendar_availability(
+    session: Session,
+    service_id: int,
+    from_date: date,
+    to_date: date,
+) -> list[CalendarAvailabilityRead]:
+    """Calcula la disponibilidad diaria de un servicio en un rango de fechas.
+
+    Obtiene los horarios laborales, bloqueos de calendario y citas que
+    ocupan disponibilidad mediante consultas por rango, agrupándolos
+    por fecha según la zona horaria del negocio.
+
+    Para cada día, comprueba si existe al menos un horario válido
+    para el servicio solicitado, considerando su duración, buffers,
+    tolerancias, bloqueos y citas existentes.
+
+    Devuelve una lista ordenada de fechas con un booleano que indica
+    si existe disponibilidad. Los días sin horario laboral o en los
+    que el servicio no entra en la jornada se consideran no disponibles.
+
+    Lanza 404 si el servicio no existe o no está disponible.
+    Lanza 409 si no se puede obtener la configuración del negocio.
+    """
+    service = get_service_or_404(service_id, session)
+    business_settings = get_business_settings_or_409(session)
+
+    working_hours = get_working_hours_by_range(session, from_date, to_date)
+
+    working_hours_by_date = {wh.date: wh for wh in working_hours}
+
+    calendar_blocks = get_calendar_blocks_by_range(
+        session,
+        from_date,
+        to_date,
+        business_settings,
+    )
+
+    calendar_blocks_by_date = defaultdict(list)
+    business_tz = ZoneInfo(business_settings.timezone)
+
+    for cb in calendar_blocks:
+        local_date = cb.starts_at.astimezone(business_tz).date()
+        calendar_blocks_by_date[local_date].append(cb)
+
+    appointments = get_occupying_appointments_by_range(
+        session,
+        from_date,
+        to_date,
+        business_settings,
+    )
+
+    appointments_by_date = defaultdict(list)
+
+    for appointment, appointment_service in appointments:
+        local_date = appointment.starts_at.astimezone(business_tz).date()
+        appointments_by_date[local_date].append((appointment, appointment_service))
+
+    current_date = from_date
+    results = []
+
+    while current_date <= to_date:
+        working_hour = working_hours_by_date.get(current_date)
+
+        if working_hour is None:
+            results.append(
+                CalendarAvailabilityRead(
+                    date=current_date,
+                    available=False,
+                )
+            )
+            current_date += timedelta(days=1)
+            continue
+
+        daily_appointments = appointments_by_date[current_date]
+        daily_blocks = calendar_blocks_by_date[current_date]
+
+        try:
+            available = (
+                next(
+                    iter_available_slots(
+                        working_hour,
+                        service,
+                        business_settings,
+                        daily_appointments,
+                        daily_blocks,
+                        current_date,
+                    ),
+                    None,
+                )
+                is not None
+            )
+
+        except HTTPException as exc:
+            if (
+                exc.status_code != status.HTTP_409_CONFLICT
+                or exc.detail
+                != "El servicio no entra dentro del horario laboral disponible"
+            ):
+                raise
+
+            available = False
+
+        results.append(CalendarAvailabilityRead(date=current_date, available=available))
+
+        current_date += timedelta(days=1)
+
+    return results
