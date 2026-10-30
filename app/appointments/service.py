@@ -10,7 +10,6 @@ from app.appointments.helper import iter_available_slots
 from app.appointments.models import Appointment
 from app.appointments.schemas import CalendarAvailabilityRead
 from app.business_settings.models import BusinessSettings
-from app.business_settings.schemas import BusinessSettingsRead
 from app.business_settings.service import get_business_now, get_business_settings_or_409
 from app.calendar_blocks.models import CalendarBlock
 from app.calendar_blocks.service import get_calendar_blocks_by_range
@@ -37,26 +36,6 @@ def get_appointment_or_404(appointment_id: int, session: Session) -> Appointment
         )
 
     return cast(Appointment, appointment)
-
-
-def calculate_appointment_time_range(
-    starts_at: datetime,
-    service: Service,
-) -> tuple[datetime, datetime]:
-    """Calcula el rango de tiempo realmente ocupado por una cita.
-
-    Contempla la duración del servicio y los buffers configurados
-    antes y después del inicio visible de la cita.
-    """
-    start_time = starts_at - timedelta(minutes=service.buffer_before_minutes)
-
-    end_time = (
-        starts_at
-        + timedelta(minutes=service.duration_minutes)
-        + timedelta(minutes=service.buffer_after_minutes)
-    )
-
-    return start_time, end_time
 
 
 def validate_not_in_past(
@@ -172,6 +151,7 @@ def validate_no_appointment_overlap(
         AppointmentStatusEnum.CONFIRMED,
         AppointmentStatusEnum.PENDING_CONFIRMATION,
         AppointmentStatusEnum.PENDING_PAYMENT,
+        AppointmentStatusEnum.COMPLETED,
     }
 
     query = (
@@ -350,6 +330,7 @@ def get_appointments_by_date(
         AppointmentStatusEnum.CONFIRMED,
         AppointmentStatusEnum.PENDING_CONFIRMATION,
         AppointmentStatusEnum.PENDING_PAYMENT,
+        AppointmentStatusEnum.COMPLETED,
     }
 
     results = session.exec(
@@ -429,6 +410,7 @@ def get_occupying_appointments_by_range(
         AppointmentStatusEnum.CONFIRMED,
         AppointmentStatusEnum.PENDING_CONFIRMATION,
         AppointmentStatusEnum.PENDING_PAYMENT,
+        AppointmentStatusEnum.COMPLETED,
     )
 
     statement = (
@@ -443,99 +425,6 @@ def get_occupying_appointments_by_range(
     )
 
     return list(session.exec(statement).all())
-
-
-def calculate_first_and_last_possible_start(
-    working_hour: WorkingHour, service: Service, business_settings: BusinessSettingsRead
-) -> tuple[datetime, datetime]:
-    """Calcula el primer y último inicio posible para un servicio.
-
-    Considera el horario laboral, las tolerancias configuradas del negocio,
-    la duración del servicio y sus buffers anterior y posterior.
-
-    Lanza 409 si el servicio no puede entrar dentro del rango disponible.
-    """
-    timezone = ZoneInfo(business_settings.timezone)
-
-    working_start = datetime.combine(
-        working_hour.date,
-        working_hour.start_time,
-        tzinfo=timezone,
-    )
-
-    occupied_start_limit = working_start - timedelta(
-        minutes=business_settings.appointment_start_tolerance_minutes
-    )
-
-    first_possible_starts_at = occupied_start_limit + timedelta(
-        minutes=service.buffer_before_minutes
-    )
-
-    working_end = datetime.combine(
-        working_hour.date,
-        working_hour.end_time,
-        tzinfo=timezone,
-    )
-
-    occupied_end_limit = working_end + timedelta(
-        minutes=business_settings.appointment_end_tolerance_minutes
-    )
-
-    last_possible_starts_at = occupied_end_limit - timedelta(
-        minutes=service.duration_minutes + service.buffer_after_minutes
-    )
-
-    if first_possible_starts_at > last_possible_starts_at:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El servicio no entra dentro del horario laboral disponible",
-        )
-
-    return first_possible_starts_at, last_possible_starts_at
-
-
-def has_calendar_block_overlap(
-    start_time: datetime,
-    end_time: datetime,
-    calendar_blocks: list[CalendarBlock],
-) -> bool:
-    """Indica si un rango se superpone con algún bloqueo de calendario."""
-    start_time_utc = start_time.astimezone(UTC)
-    end_time_utc = end_time.astimezone(UTC)
-
-    return any(
-        as_utc(block.starts_at) < end_time_utc
-        and as_utc(block.ends_at) > start_time_utc
-        for block in calendar_blocks
-    )
-
-
-def has_appointment_overlap(
-    start_time: datetime,
-    end_time: datetime,
-    appointments: list[tuple[Appointment, Service]],
-) -> bool:
-    """Indica si un rango se superpone con alguna cita existente.
-
-    La comparación considera los buffers del servicio asociado
-    a cada cita existente.
-    """
-    start_time_utc = start_time.astimezone(UTC)
-    end_time_utc = end_time.astimezone(UTC)
-
-    for appointment, service in appointments:
-        start_with_buffer = as_utc(
-            appointment.starts_at - timedelta(minutes=service.buffer_before_minutes)
-        )
-
-        end_with_buffer = as_utc(
-            appointment.ends_at + timedelta(minutes=service.buffer_after_minutes)
-        )
-
-        if start_time_utc < end_with_buffer and end_time_utc > start_with_buffer:
-            return True
-
-    return False
 
 
 def validate_calendar_availability_range(

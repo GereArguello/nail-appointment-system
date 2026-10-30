@@ -28,7 +28,7 @@ from app.tests.factories import (
     create_service_data,
     create_working_hours_data,
 )
-from app.tests.helpers import ensure_working_hour
+from app.tests.helpers import ensure_working_hour, get_local_date
 from app.users.models import User
 from app.users.schemas import UserRead
 from app.working_hours.schemas import WorkingHourRead
@@ -373,3 +373,25 @@ def post_appointment(
         )
 
     return _post_appointment
+
+
+@pytest.fixture
+def create_working_hours_list(
+    create_working_hours: Callable[..., WorkingHourRead],
+    ensure_business_settings: Callable[..., BusinessSettingsRead],
+) -> Callable[[int], list[WorkingHourRead]]:
+
+    def _create_working_hours_list(amount: int) -> list[WorkingHourRead]:
+        business_settings = ensure_business_settings()
+
+        return [
+            create_working_hours(
+                date=get_local_date(
+                    days_offset=i + 1,
+                    timezone=business_settings.timezone,
+                )
+            )
+            for i in range(amount)
+        ]
+
+    return _create_working_hours_list

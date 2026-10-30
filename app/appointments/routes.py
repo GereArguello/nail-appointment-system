@@ -2,7 +2,11 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.appointments.helper import convert_business_range_to_utc, iter_available_slots
+from app.appointments.helper import (
+    calculate_appointment_time_range,
+    convert_business_range_to_utc,
+    iter_available_slots,
+)
 from app.appointments.models import Appointment
 from app.appointments.schemas import (
     AppointmentCreate,
@@ -10,7 +14,6 @@ from app.appointments.schemas import (
     CalendarAvailabilityRead,
 )
 from app.appointments.service import (
-    calculate_appointment_time_range,
     calculate_calendar_availability,
     get_appointment_or_404,
     get_appointments_by_date,

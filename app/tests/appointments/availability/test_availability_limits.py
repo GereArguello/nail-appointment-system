@@ -6,7 +6,7 @@ from fastapi import status
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.appointments.service import calculate_first_and_last_possible_start
+from app.appointments.helper import calculate_first_and_last_possible_start
 from app.business_settings.schemas import BusinessSettingsRead
 from app.calendar_blocks.schemas import CalendarBlockRead
 from app.services.schemas import ServiceRead

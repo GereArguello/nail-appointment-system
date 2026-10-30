@@ -12,28 +12,6 @@ from app.working_hours.schemas import WorkingHourRead
 
 
 @pytest.fixture
-def create_working_hours_list(
-    create_working_hours: Callable[..., WorkingHourRead],
-    create_business_settings: Callable[..., BusinessSettingsRead],
-) -> Callable[[int], list[WorkingHourRead]]:
-
-    def _create_working_hours_list(amount: int) -> list[WorkingHourRead]:
-        business_settings = create_business_settings()
-
-        return [
-            create_working_hours(
-                date=get_local_date(
-                    days_offset=i + 1,
-                    timezone=business_settings.timezone,
-                )
-            )
-            for i in range(amount)
-        ]
-
-    return _create_working_hours_list
-
-
-@pytest.fixture
 def create_past_working_hours(
     session: Session,
     create_working_hours: Callable[..., WorkingHourRead],
