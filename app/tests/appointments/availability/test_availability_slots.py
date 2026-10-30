@@ -36,7 +36,7 @@ def test_should_exclude_past_and_current_slots_for_today(
     )
 
     monkeypatch.setattr(
-        "app.appointments.routes.utc_now",
+        "app.appointments.helper.utc_now",
         lambda: datetime(
             working_hour.date.year,
             working_hour.date.month,

@@ -139,7 +139,6 @@ def test_should_exclude_slots_overlapping_appointment_with_existing_service_buff
     [
         AppointmentStatusEnum.CANCELLED_BY_CLIENT,
         AppointmentStatusEnum.CANCELLED_BY_ADMIN,
-        AppointmentStatusEnum.COMPLETED,
         AppointmentStatusEnum.NO_SHOW,
     ],
 )

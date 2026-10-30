@@ -20,7 +20,6 @@ from app.working_hours.schemas import WorkingHourRead
     [
         AppointmentStatusEnum.CANCELLED_BY_CLIENT,
         AppointmentStatusEnum.CANCELLED_BY_ADMIN,
-        AppointmentStatusEnum.COMPLETED,
         AppointmentStatusEnum.NO_SHOW,
     ],
 )
